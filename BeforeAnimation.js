@@ -1,5 +1,5 @@
 /*:
-@plugindesc スキル実行前アニメーション ver1.0
+@plugindesc スキル実行前アニメーション ver1.1
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388?lang=ja)
 
 @param beforeAction
@@ -14,6 +14,12 @@ trueを指定すると、スキル実行前アニメーション表示時に、�
 @desc
 trueを指定すると、スキル実行前アニメーション表示時に、スキル使用メッセージを表示します。
 
+@param MOG_BattlerMotion_beforeAction
+@type boolean
+@default false
+@desc
+trueを指定すると、MOG_BattlerMotion使用時、スキル実行前アニメーション表示前に、アクター・敵キャラのアニメーションを表示します。
+
 @help
 スキル発動前にアニメーションを表示するプラグインです。
 アイテム使用前にアニメーションを表示することもできます。
@@ -25,13 +31,18 @@ trueを指定すると、スキル実行前アニメーション表示時に、�
 例えば、ファイアのスキル欄に<BeforeAnimation id=117>と記述すると、
 ファイア発動前にアニメーション117を再生できます。
 
-[License]
+[ライセンス]
 このプラグインは、MITライセンスの条件の下で利用可能です。
+
+[更新履歴]
+v1.1 MOG_BattlerMotionに対応
+v1.0 新規作成
 */
 {
     const param = PluginManager.parameters("BeforeAnimation");
     const beforeAction = (param["beforeAction"] === "true" ? true : false);
     const beforeDisplayMessage = (param["beforeDisplayMessage"] === "true" ? true : false);
+    const MOG_BattlerMotion_beforeAction = (param["MOG_BattlerMotion_beforeAction"] === "true" ? true : false);
 
     Game_Item.prototype.beforeAnimationId = function() {
         if (this._beforeAnimationId === undefined) {
@@ -51,7 +62,7 @@ trueを指定すると、スキル実行前アニメーション表示時に、�
 
     // redefine
     Window_BattleLog.prototype.startAction = function(subject, action, targets) {
-        var item = action.item();
+        const item = action.item();
         if (!beforeAction || !action.beforeAnimationId()) {
             this.push("performActionStart", subject, action);
             this.push("waitForMovement");
@@ -83,6 +94,7 @@ trueを指定すると、スキル実行前アニメーション表示時に、�
     BattleManager.initMembers = function() {
         _initMembers.call(this);
         this._showBeforeAnimationFinish = false;
+        this._showMOGBeforeActionFinish = false;
     };
 
     // redefine
@@ -90,6 +102,36 @@ trueを指定すると、スキル実行前アニメーション表示時に、�
         const subject = this._subject;
         const action = subject.currentAction();
         if (action) {
+            this.processTurnAction(subject, action);
+        } else {
+            subject.onAllActionsEnd();
+            this.refreshStatus();
+            this._logWindow.displayAutoAffectedStatus(subject);
+            this._logWindow.displayCurrentState(subject);
+            this._logWindow.displayRegeneration(subject);
+            this._subject = this.getNextSubject();
+        }
+    };
+
+    BattleManager.processTurnAction = function(subject, action) {
+        // Enable MOG_BattlerMotion
+        if (MOG_BattlerMotion_beforeAction) {
+            if (!this._showMOGBeforeActionFinish) {
+                action.prepare();
+                this._showMOGBeforeActionFinish = true;
+            } else if (action.beforeAnimationId() && !this._showBeforeAnimationFinish) {
+                this.startBeforeAnimation();
+                this._showBeforeAnimationFinish = true;
+            } else {
+                if (action.isValid()) {
+                    this.startAction();
+                }
+                subject.removeCurrentAction();
+                this._showBeforeAnimationFinish = false;
+                this._showMOGBeforeActionFinish = false;
+            }
+        // Disable MOG_BattlerMotion
+        } else {
             if (action.beforeAnimationId() && !this._showBeforeAnimationFinish) {
                 this.startBeforeAnimation();
                 this._showBeforeAnimationFinish = true;
@@ -101,13 +143,6 @@ trueを指定すると、スキル実行前アニメーション表示時に、�
                 subject.removeCurrentAction();
                 this._showBeforeAnimationFinish = false;
             }
-        } else {
-            subject.onAllActionsEnd();
-            this.refreshStatus();
-            this._logWindow.displayAutoAffectedStatus(subject);
-            this._logWindow.displayCurrentState(subject);
-            this._logWindow.displayRegeneration(subject);
-            this._subject = this.getNextSubject();
         }
     };
 
