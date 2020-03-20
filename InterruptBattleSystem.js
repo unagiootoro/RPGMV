@@ -16,7 +16,7 @@ v1.0 新規作成
 */
 {
     // redefine
-    _Game_Action_prepare = Game_Action.prototype.prepare;
+    const _Game_Action_prepare = Game_Action.prototype.prepare;
     Game_Action.prototype.prepare = function() {
         _Game_Action_prepare.call(this);
         if (this.subject() instanceof Game_Actor) {
