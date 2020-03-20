@@ -5,7 +5,7 @@
 @help
 自分のターンが来た時にコマンドを入力できるようにするスクリプトです。
 
-@param disablePartyCommand
+@param addEscapeCommadToActorWindow
 @type boolean
 @default true
 @desc
@@ -18,42 +18,40 @@ trueを指定すると、逃げるのコマンドをアクターウィンドウ�
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
-v1.1 プラグインパラメータ「disablePartyCommand」を追加
+v1.1 プラグインパラメータ「addEscapeCommadToActorWindow」を追加
 v1.0 新規作成
 */
 {
     const param = PluginManager.parameters("InterruptBattleSystem");
-    const disablePartyCommand = (param["disablePartyCommand"] === "true" ? true : false);
+    const addEscapeCommadToActorWindow = (param["addEscapeCommadToActorWindow"] === "true" ? true : false);
 
     // redefine
     const _Game_Battler_removeCurrentAction = Game_Battler.prototype.removeCurrentAction
     Game_Battler.prototype.removeCurrentAction = function() {
         if (!(this instanceof Game_Actor)) {
             _Game_Battler_removeCurrentAction.call(this);
-        }
-        if (BattleManager.isActorCommandSelected()) {
-            _Game_Battler_removeCurrentAction.call(this);
-            BattleManager.setActorCommandSelected(false);
+        } else {
+            if (BattleManager.isActorCommandSelected()) {
+                _Game_Battler_removeCurrentAction.call(this);
+                BattleManager.setActorCommandSelected(false);
+            }
         }
     };
 
     // redefine
     const _Game_Action_prepare = Game_Action.prototype.prepare;
     Game_Action.prototype.prepare = function() {
-        _Game_Action_prepare.call(this);
-        if (this.subject() instanceof Game_Actor) {
-            BattleManager.setActor(this.subject());
-            BattleManager.startInputPhase();
+        if (this.subject() instanceof Game_Actor && !BattleManager.isActorCommandSelected()) {
+            _Game_Action_prepare.call(this);
+            if (!(this.subject().isConfused() && !this._forcing)) {
+                BattleManager.setActor(this.subject());
+                BattleManager.startInputPhase();
+            } else {
+                BattleManager._actorCommandSelected = true;
+            }
+        } else {
+            _Game_Action_prepare.call(this);
         }
-    };
-
-    // redefine
-    const _Game_Action_isValid = Game_Action.prototype.isValid;
-    Game_Action.prototype.isValid = function() {
-        const valid = _Game_Action_isValid.call(this);
-        if (!(this.subject() instanceof Game_Actor)) return valid;
-        if (BattleManager.isActorCommandSelected()) return valid;
-        return false;
     };
 
     // redefine
@@ -61,7 +59,16 @@ v1.0 新規作成
     BattleManager.initMembers = function() {
         _BattleManager_initMembers.call(this);
         this._actorCommandSelected = false;
+        this._inputPartyCommandFinished = false;
     };
+
+    BattleManager.inputPartyCommandFinish = function() {
+        this._inputPartyCommandFinished = true;
+    }
+
+    BattleManager.isInputPartyCommandFinished = function() {
+        return this._inputPartyCommandFinished;
+    }
 
     BattleManager.startInputPhase = function() {
         this._phase = "input";
@@ -79,6 +86,17 @@ v1.0 新規作成
         return this._actorCommandSelected;
     };
 
+    const _BattleManager_startAction = BattleManager.startAction;
+    BattleManager.startAction = function() {
+        var subject = this._subject;
+        var action = subject.currentAction();
+        if (subject instanceof Game_Actor) {
+            if (this._actorCommandSelected) _BattleManager_startAction.call(this);
+        } else {
+            _BattleManager_startAction.call(this);
+        }
+    };
+
     // redefine
     BattleManager.selectNextCommand = function() {
         this.startTurn();
@@ -88,7 +106,7 @@ v1.0 新規作成
     const _Window_ActorCommand_makeCommandList = Window_ActorCommand.prototype.makeCommandList;
     Window_ActorCommand.prototype.makeCommandList = function() {
         _Window_ActorCommand_makeCommandList.call(this);
-        if (disablePartyCommand) {
+        if (addEscapeCommadToActorWindow) {
             if (this._actor) {
                 this.addEscapeCommand();
             }
@@ -103,10 +121,15 @@ v1.0 新規作成
     const _Scene_Battle_createActorCommandWindow = Scene_Battle.prototype.createActorCommandWindow;
     Scene_Battle.prototype.createActorCommandWindow = function() {
         _Scene_Battle_createActorCommandWindow.call(this);
-        if (disablePartyCommand) {
+        if (addEscapeCommadToActorWindow) {
             this._actorCommandWindow.setHandler("escape", this.commandEscape.bind(this));
             this.addWindow(this._actorCommandWindow);
         }
+    };
+
+    Scene_Battle.prototype.commandEscape = function() {
+        BattleManager.processEscape();
+        this.changeInputWindow();
     };
 
     // redefine
@@ -128,8 +151,13 @@ v1.0 新規作成
     // redefine
     const _Scene_Battle_startPartyCommandSelection = Scene_Battle.prototype.startPartyCommandSelection;
     Scene_Battle.prototype.startPartyCommandSelection = function() {
-        if (disablePartyCommand) {
-            this.selectNextCommand();
+        if (addEscapeCommadToActorWindow) {
+            if (BattleManager.isInputPartyCommandFinished()) {
+                this.selectNextCommand();
+            } else {
+                BattleManager.inputPartyCommandFinish();
+                _Scene_Battle_startPartyCommandSelection.call(this);
+            }
         } else {
             _Scene_Battle_startPartyCommandSelection.call(this);
         }
