@@ -1,5 +1,5 @@
 /*:
-@plugindesc その場で行動する戦闘システム v1.0
+@plugindesc その場で行動する戦闘システム v1.1
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @help
