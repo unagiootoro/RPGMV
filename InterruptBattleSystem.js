@@ -5,6 +5,12 @@
 @help
 自分のターンが来た時にコマンドを入力できるようにするスクリプトです。
 
+@param disablePartyCommand
+@type boolean
+@default true
+@desc
+trueを指定すると、逃げるのコマンドをアクターウィンドウに追加します。
+
 [使用方法]
 このスクリプトは、導入するだけで使用できます。
 
@@ -12,9 +18,25 @@
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.1 プラグインパラメータ「disablePartyCommand」を追加
 v1.0 新規作成
 */
 {
+    const param = PluginManager.parameters("InterruptBattleSystem");
+    const disablePartyCommand = (param["disablePartyCommand"] === "true" ? true : false);
+
+    // redefine
+    const _Game_Battler_removeCurrentAction = Game_Battler.prototype.removeCurrentAction
+    Game_Battler.prototype.removeCurrentAction = function() {
+        if (!(this instanceof Game_Actor)) {
+            _Game_Battler_removeCurrentAction.call(this);
+        }
+        if (BattleManager.isActorCommandSelected()) {
+            _Game_Battler_removeCurrentAction.call(this);
+            BattleManager.setActorCommandSelected(false);
+        }
+    };
+
     // redefine
     const _Game_Action_prepare = Game_Action.prototype.prepare;
     Game_Action.prototype.prepare = function() {
@@ -26,9 +48,18 @@ v1.0 新規作成
     };
 
     // redefine
-    const _initMembers = BattleManager.initMembers;
+    const _Game_Action_isValid = Game_Action.prototype.isValid;
+    Game_Action.prototype.isValid = function() {
+        const valid = _Game_Action_isValid.call(this);
+        if (!(this.subject() instanceof Game_Actor)) return valid;
+        if (BattleManager.isActorCommandSelected()) return valid;
+        return false;
+    };
+
+    // redefine
+    const _BattleManager_initMembers = BattleManager.initMembers;
     BattleManager.initMembers = function() {
-        _initMembers.call(this);
+        _BattleManager_initMembers.call(this);
         this._actorCommandSelected = false;
     };
 
@@ -54,23 +85,27 @@ v1.0 新規作成
     };
 
     // redefine
-    const _BattleManager_processTurn = BattleManager.processTurn;
-    BattleManager.processTurn = function() {
-        const subject = this._subject;
-        const action = subject.currentAction();
-        if (action) {
-            action.prepare();
-            if (!(subject instanceof Game_Actor) || this._actorCommandSelected) {
-                this._actorCommandSelected = false;
-                _BattleManager_processTurn.call(this);
+    const _Window_ActorCommand_makeCommandList = Window_ActorCommand.prototype.makeCommandList;
+    Window_ActorCommand.prototype.makeCommandList = function() {
+        _Window_ActorCommand_makeCommandList.call(this);
+        if (disablePartyCommand) {
+            if (this._actor) {
+                this.addEscapeCommand();
             }
-        } else {
-            subject.onAllActionsEnd();
-            this.refreshStatus();
-            this._logWindow.displayAutoAffectedStatus(subject);
-            this._logWindow.displayCurrentState(subject);
-            this._logWindow.displayRegeneration(subject);
-            this._subject = this.getNextSubject();
+        }
+    };
+
+    Window_ActorCommand.prototype.addEscapeCommand = function() {
+        this.addCommand(TextManager.escape, "escape", BattleManager.canEscape());
+    };
+
+    // redefine
+    const _Scene_Battle_createActorCommandWindow = Scene_Battle.prototype.createActorCommandWindow;
+    Scene_Battle.prototype.createActorCommandWindow = function() {
+        _Scene_Battle_createActorCommandWindow.call(this);
+        if (disablePartyCommand) {
+            this._actorCommandWindow.setHandler("escape", this.commandEscape.bind(this));
+            this.addWindow(this._actorCommandWindow);
         }
     };
 
@@ -88,6 +123,16 @@ v1.0 新規作成
     // redefine
     Scene_Battle.prototype.selectPreviousCommand = function() {
         this.changeInputWindow();
+    };
+
+    // redefine
+    const _Scene_Battle_startPartyCommandSelection = Scene_Battle.prototype.startPartyCommandSelection;
+    Scene_Battle.prototype.startPartyCommandSelection = function() {
+        if (disablePartyCommand) {
+            this.selectNextCommand();
+        } else {
+            _Scene_Battle_startPartyCommandSelection.call(this);
+        }
     };
 
     // redefine
