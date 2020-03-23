@@ -1,5 +1,5 @@
 /*:
-@plugindesc その場で行動する戦闘システム v1.1
+@plugindesc その場で行動する戦闘システム v1.2
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @help
@@ -18,6 +18,7 @@ trueを指定すると、逃げるのコマンドをアクターウィンドウ�
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.2 アクターが行動するたびにターンが増えてしまう不具合を修正
 v1.1 プラグインパラメータ「addEscapeCommadToActorWindow」を追加
 v1.0 新規作成
 */
@@ -60,6 +61,7 @@ v1.0 新規作成
         _BattleManager_initMembers.call(this);
         this._actorCommandSelected = false;
         this._inputPartyCommandFinished = false;
+        this._turnStarted = false;
     };
 
     BattleManager.inputPartyCommandFinish = function() {
@@ -86,6 +88,19 @@ v1.0 新規作成
         return this._actorCommandSelected;
     };
 
+    BattleManager.resumeTurn = function() {
+        this._phase = "turn";
+        this.clearActor();
+        this._logWindow.startTurn();
+    };
+
+    // redefine
+    const _BattleManager_endTurn = BattleManager.endTurn;
+    BattleManager.endTurn = function() {
+        _BattleManager_endTurn.call(this);
+        this._turnStarted = false;
+    };
+
     const _BattleManager_startAction = BattleManager.startAction;
     BattleManager.startAction = function() {
         var subject = this._subject;
@@ -99,7 +114,12 @@ v1.0 新規作成
 
     // redefine
     BattleManager.selectNextCommand = function() {
-        this.startTurn();
+        if (this._turnStarted) {
+            this.resumeTurn();
+        } else {
+            this.startTurn();
+            this._turnStarted = true;
+        }
     };
 
     // redefine
@@ -169,4 +189,4 @@ v1.0 新規作成
         _Scene_Battle_startActorCommandSelected.call(this);
         BattleManager.setActorCommandSelected(true);
     };
-}
+};
