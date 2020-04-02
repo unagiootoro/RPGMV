@@ -1,15 +1,15 @@
 /*:
-@plugindesc その場で行動する戦闘システム v1.2
+@plugindesc その場で行動する戦闘システム v1.2.1
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
-
-@help
-自分のターンが来た時にコマンドを入力できるようにするスクリプトです。
 
 @param addEscapeCommadToActorWindow
 @type boolean
 @default true
 @desc
 trueを指定すると、逃げるのコマンドをアクターウィンドウに追加します。
+
+@help
+自分のターンが来た時にコマンドを入力できるようにするスクリプトです。
 
 [使用方法]
 このスクリプトは、導入するだけで使用できます。
@@ -18,6 +18,7 @@ trueを指定すると、逃げるのコマンドをアクターウィンドウ�
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.2.1 プラグインヘルプを修正
 v1.2 アクターが行動するたびにターンが増えてしまう不具合を修正
 v1.1 プラグインパラメータ「addEscapeCommadToActorWindow」を追加
 v1.0 新規作成
