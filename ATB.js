@@ -80,6 +80,7 @@ Shiftキーが押されている間、ゲージ進行を早送りするスピー
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.0.1 ターン終了時にSkillWaitのゲージ速度が変更されるバグを修正
 v1.0.0 新規作成
 */
 {
@@ -314,8 +315,10 @@ v1.0.0 新規作成
             const minSpeed = Math.min(...speeds);
             let i = 0;
             for (let gauge of this._gauges) {
-                let gaugeSpeed = speeds[i] / minSpeed;
-                gauge.changeSpeed(gaugeSpeed);
+                if (gauge.purpose === ATBManager.PURPOSE_TIME) {
+                    let gaugeSpeed = speeds[i] / minSpeed;
+                    gauge.changeSpeed(gaugeSpeed);
+                }
                 i++;
             }
         }
