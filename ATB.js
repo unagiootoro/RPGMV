@@ -315,7 +315,8 @@ v1.0.0 新規作成
             const minSpeed = Math.min(...speeds);
             let i = 0;
             for (let gauge of this._gauges) {
-                if (gauge.purpose === ATBManager.PURPOSE_TIME) {
+                console.log(gauge.purpose);
+                if (gauge.purpose === ATBGauge.PURPOSE_TIME) {
                     let gaugeSpeed = speeds[i] / minSpeed;
                     gauge.changeSpeed(gaugeSpeed);
                 }
