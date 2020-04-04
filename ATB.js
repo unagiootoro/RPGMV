@@ -68,7 +68,7 @@ Shiftキーが押されている間、ゲージ進行を早送りするスピー
 【仕様】
 ・内部的にはゲージの値は0～1000で管理され、毎フレームごとに増加します。
 ・ゲージが溜まる速さは次の計算式で決定します。
-　　ゲージスピード = (素早さ / 全キャラクターの素早さの最小値) * baseGaugeSpeed * fastForwardSpeed
+　　ゲージスピード = (素早さ / 全キャラクターの素早さの最小値) * baseGaugeSpeed * fastForward
 ・スキル待機時間は次の計算式で決定します。
 　　スキル待機時間 = (ゲージスピード + スキルの速度補正 + 攻撃速度補正) * baseSkillWaitGaugeSpeed
 ・戦闘における1ターンの経過は、全キャラクターの行動が終わった段階で1ターン経過とみなします。
@@ -80,22 +80,26 @@ Shiftキーが押されている間、ゲージ進行を早送りするスピー
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.0.2 外部からコンフィグを変更できるように修正
 v1.0.1 ターン終了時にSkillWaitのゲージ速度が変更されるバグを修正
 v1.0.0 新規作成
 */
+
+const ATBConfig = {};
+
 {
     "use strict";
 
     const param = PluginManager.parameters("ATB");
-    const useCTB = (param["useCTB"] === "true" ? true : false);
-    const waitSelectSkillOrItem = (param["waitSelectSkillOrItem"] === "true" ? true : false);
-    const waitAnimation = (param["waitAnimation"] === "true" ? true : false);
-    const drawEnemyUnderGauge = (param["drawEnemyUnderGauge"] === "true" ? true : false);
-    const baseGaugeSpeed = parseInt(param["baseGaugeSpeed"]);
-    const maxActionCount = parseInt(param["maxActionCount"]);
-    const baseSkillWaitGaugeSpeed = parseInt(param["baseSkillWaitGaugeSpeed"]);
-    const fastForward = parseInt(param["fastForward"]);
-    const drawUnderGauge = false;
+    ATBConfig.useCTB = (param["useCTB"] === "true" ? true : false);
+    ATBConfig.waitSelectSkillOrItem = (param["waitSelectSkillOrItem"] === "true" ? true : false);
+    ATBConfig.waitAnimation = (param["waitAnimation"] === "true" ? true : false);
+    ATBConfig.drawEnemyUnderGauge = (param["drawEnemyUnderGauge"] === "true" ? true : false);
+    ATBConfig.baseGaugeSpeed = parseInt(param["baseGaugeSpeed"]);
+    ATBConfig.maxActionCount = parseInt(param["maxActionCount"]);
+    ATBConfig.baseSkillWaitGaugeSpeed = parseInt(param["baseSkillWaitGaugeSpeed"]);
+    ATBConfig.fastForward = parseInt(param["fastForward"]);
+    ATBConfig.drawUnderGauge = false;
 
     class ATBGauge {
         static get PURPOSE_TIME() {
@@ -140,7 +144,7 @@ v1.0.0 新規作成
         }
 
         changeSpeed(speed) {
-            if (speed > maxActionCount) speed = maxActionCount;
+            if (speed > ATBConfig.maxActionCount) speed = ATBConfig.maxActionCount;
             this._speed = speed;
         }
 
@@ -163,7 +167,7 @@ v1.0.0 新規作成
                 this.toFull();
                 return;
             }
-            this._value += this._speed * baseGaugeSpeed * fastForwardSpeed;
+            this._value += this._speed * ATBConfig.baseGaugeSpeed * fastForwardSpeed;
             if (this._value > ATBManager.GAUGE_MAX) this.toFull();
         }
 
@@ -225,7 +229,7 @@ v1.0.0 新規作成
         }
 
         updateTurn() {
-            if (!useCTB) this.priorityEnemyAction();
+            if (!ATBConfig.useCTB) this.priorityEnemyAction();
             for (let gauge of this._gauges) {
                 if (gauge.battler().isDead()) gauge.value = 0;
                 if (gauge.isFull()) {
@@ -258,7 +262,7 @@ v1.0.0 新規作成
         }
 
         fastForwardSpeed() {
-            if (Input.isPressed("shift")) return fastForward;
+            if (Input.isPressed("shift")) return ATBConfig.fastForward;
             return 1;
         }
 
@@ -339,7 +343,7 @@ v1.0.0 新規作成
             const action = battler.currentAction();
             let skillWaitSpeed = (battler.speed() + action.item().speed);
             if (battler.currentAction().isAttack()) skillWaitSpeed += battler.attackSpeed();
-            this.resetGaugeSpeed(battler, skillWaitSpeed * baseSkillWaitGaugeSpeed);
+            this.resetGaugeSpeed(battler, skillWaitSpeed * ATBConfig.baseSkillWaitGaugeSpeed);
             battler.gauge().purpose = ATBGauge.PURPOSE_SKILL_WAIT;
         }
 
@@ -637,7 +641,7 @@ v1.0.0 新規作成
 
     BattleManager.updateTurn = function() {
         // CTBの場合は、BattleManager.updateTurn内でゲージを更新する
-        if (useCTB) {
+        if (ATBConfig.useCTB) {
             this._atbManager.updateGauge();
         }
         this._atbManager.updateTurn();
@@ -646,7 +650,7 @@ v1.0.0 新規作成
             this._subject = this.getNextSubject();
         }
         if (this._subject) {
-            if (!useCTB && this._subject instanceof Game_Actor) {
+            if (!ATBConfig.useCTB && this._subject instanceof Game_Actor) {
                 const nextEnemySubject = this._atbManager.getNextEnemySubject();
                 if (nextEnemySubject) {
                     this._atbManager.addNextSubject(this._subject);
@@ -698,7 +702,7 @@ v1.0.0 新規作成
             if (!this._beforeActionFinish) {
                 this.beforeAction(action);
                 if (this._beforeActionFinish) {
-                    if (useCTB && this._actorCommandSelected) this._atbManager.toWait();
+                    if (ATBConfig.useCTB && this._actorCommandSelected) this._atbManager.toWait();
                 }
             }
             if (this._beforeActionFinish) {
@@ -724,14 +728,13 @@ v1.0.0 新規作成
 
     const _BattleManager_startAction = BattleManager.startAction;
     BattleManager.startAction = function() {
-        var subject = this._subject;
-        if (subject instanceof Game_Actor) {
+        if (this._subject instanceof Game_Actor) {
             if (this._actorCommandSelected) {
-                if (waitAnimation) this._atbManager.toWait();
+                if (ATBConfig.waitAnimation) this._atbManager.toWait();
                 _BattleManager_startAction.call(this);
             }
         } else {
-            if (useCTB || waitSelectSkillOrItem) {
+            if (ATBConfig.useCTB || ATBConfig.waitSelectSkillOrItem) {
                 this._atbManager.toWait();
             }
             _BattleManager_startAction.call(this);
@@ -754,7 +757,7 @@ v1.0.0 新規作成
     };
 
     BattleManager.selectNextCommand = function() {
-        if (useCTB) {
+        if (ATBConfig.useCTB) {
             this.startTurn();
         } else {
             BattleManager.setActorCommandSelected(true);
@@ -764,7 +767,7 @@ v1.0.0 新規作成
     };
 
     BattleManager.getNextSubject = function() {
-        if (!useCTB && this._subject && this._subject.gauge().isActionEnd()) {
+        if (!ATBConfig.useCTB && this._subject && this._subject.gauge().isActionEnd()) {
             return null;
         }
         return this._atbManager.getNextSubject();
@@ -781,7 +784,7 @@ v1.0.0 新規作成
         } else {
             this.displayEscapeFailureMessage();
             this._escapeRatio += 0.1;
-            if (useCTB) {
+            if (ATBConfig.useCTB) {
                 this.startTurn();
                 this._atbManager.escapeFailed();
             } else {
@@ -798,7 +801,7 @@ v1.0.0 新規作成
 
     const _BattleManager_isInputting = BattleManager.isInputting;
     BattleManager.isInputting = function() {
-        if (useCTB) {
+        if (ATBConfig.useCTB) {
             return _BattleManager_isInputting.call(this);
         } else {
             return _BattleManager_isInputting.call(this) && !this._turnStartReserve;
@@ -807,7 +810,7 @@ v1.0.0 新規作成
 
     const _BattleManager_update = BattleManager.update;
     BattleManager.update = function() {
-        if (useCTB) {
+        if (ATBConfig.useCTB) {
             _BattleManager_update.call(this);
         } else {
             if (!this.isBusy() && !this.updateEvent()) {
@@ -878,7 +881,7 @@ v1.0.0 新規作成
     /* class Scene_Battle */
     Scene_Battle.prototype.updateBattleProcess = function() {
         // CTBの場合は、BattleManager.updateTurn内でゲージを更新する
-        if (!useCTB) {
+        if (!ATBConfig.useCTB) {
             if (BattleManager._phase === "input" || BattleManager._phase === "turn") {
                 BattleManager.updateGauge();
             }
@@ -903,7 +906,7 @@ v1.0.0 新規作成
     // ATB時は、selectNextCommandを実行しない(selectNextCommandでacotrをselectするため)
     const _Scene_Battle_commandFight = Scene_Battle.prototype.commandFight;
     Scene_Battle.prototype.commandFight = function() {
-        if (useCTB) {
+        if (ATBConfig.useCTB) {
             _Scene_Battle_commandFight.call(this);
         } else {
             BattleManager.startTurn();
@@ -926,7 +929,7 @@ v1.0.0 新規作成
     const _Scene_Battle_startPartyCommandSelection = Scene_Battle.prototype.startPartyCommandSelection;
     Scene_Battle.prototype.startPartyCommandSelection = function() {
         if (BattleManager.isInputPartyCommandFinished()) {
-            if (useCTB) {
+            if (ATBConfig.useCTB) {
                 this.selectNextCommand();
             } else {
                 BattleManager.startTurn();
@@ -941,8 +944,8 @@ v1.0.0 新規作成
     Scene_Battle.prototype.startActorCommandSelection = function() {
         if (!BattleManager._actorCommandSelecting) {
             _Scene_Battle_startActorCommandSelected.call(this);
-            if (useCTB) {
-                BattleManager._actorCommandSelected= true;
+            if (ATBConfig.useCTB) {
+                BattleManager._actorCommandSelected = true;
             } else {
                 BattleManager._actorCommandSelecting = true;
             }
@@ -951,7 +954,7 @@ v1.0.0 新規作成
 
     const _Scene_Battle_changeInputWindow = Scene_Battle.prototype.changeInputWindow;
     Scene_Battle.prototype.changeInputWindow = function() {
-        if (useCTB) {
+        if (ATBConfig.useCTB) {
             _Scene_Battle_changeInputWindow.call(this);
         } else {
             if (BattleManager.isInputting()) {
@@ -972,7 +975,7 @@ v1.0.0 新規作成
     // ATB時は、ステータスウィンドウを移動しないようにする
     const _Scene_Battle_updateWindowPositions = Scene_Battle.prototype.updateWindowPositions;
     Scene_Battle.prototype.updateWindowPositions = function() {
-        if (useCTB) {
+        if (ATBConfig.useCTB) {
             _Scene_Battle_updateWindowPositions.call(this);
         } else {
             statusX = this._partyCommandWindow.width;
@@ -994,7 +997,7 @@ v1.0.0 新規作成
     // ATB時は、パーティコマンドが開いているとき以外は時間を進める
     const _Scene_Battle_isAnyInputWindowActive = Scene_Battle.prototype.isAnyInputWindowActive;
     Scene_Battle.prototype.isAnyInputWindowActive = function() {
-        if (useCTB) {
+        if (ATBConfig.useCTB) {
             return _Scene_Battle_isAnyInputWindowActive.call(this);
         }
         return (this._partyCommandWindow.active);
@@ -1002,7 +1005,7 @@ v1.0.0 新規作成
 
     const _Scene_Battle_commandSkill =  Scene_Battle.prototype.commandSkill;
     Scene_Battle.prototype.commandSkill = function() {
-        if (!useCTB && waitSelectSkillOrItem) {
+        if (!ATBConfig.useCTB && ATBConfig.waitSelectSkillOrItem) {
             BattleManager.toWait();
         }
         _Scene_Battle_commandSkill.call(this);
@@ -1010,7 +1013,7 @@ v1.0.0 新規作成
 
     const _Scene_Battle_commandItem = Scene_Battle.prototype.commandItem;
     Scene_Battle.prototype.commandItem = function() {
-        if (!useCTB && waitSelectSkillOrItem) {
+        if (!ATBConfig.useCTB && ATBConfig.waitSelectSkillOrItem) {
             BattleManager.toWait();
         }
         _Scene_Battle_commandItem.call(this);
@@ -1018,7 +1021,7 @@ v1.0.0 新規作成
 
     const _Scene_Battle_onSkillOk = Scene_Battle.prototype.onSkillOk;
     Scene_Battle.prototype.onSkillOk = function() {
-        if (!useCTB && waitSelectSkillOrItem) {
+        if (!ATBConfig.useCTB && ATBConfig.waitSelectSkillOrItem) {
             BattleManager.toActive();
         }
         _Scene_Battle_onSkillOk.call(this);
@@ -1026,7 +1029,7 @@ v1.0.0 新規作成
 
     const _Scene_Battle_onSkillCancel = Scene_Battle.prototype.onSkillCancel;
     Scene_Battle.prototype.onSkillCancel = function() {
-        if (!useCTB && waitSelectSkillOrItem) {
+        if (!ATBConfig.useCTB && ATBConfig.waitSelectSkillOrItem) {
             BattleManager.toActive();
         }
         _Scene_Battle_onSkillCancel.call(this);
@@ -1034,7 +1037,7 @@ v1.0.0 新規作成
 
     const _Scene_Battle_onItemOk = Scene_Battle.prototype.onItemOk;
     Scene_Battle.prototype.onItemOk = function() {
-        if (!useCTB && waitSelectSkillOrItem) {
+        if (!ATBConfig.useCTB && ATBConfig.waitSelectSkillOrItem) {
             BattleManager.toActive();
         }
         _Scene_Battle_onItemOk.call(this);
@@ -1042,7 +1045,7 @@ v1.0.0 新規作成
 
     const _Scene_Battle_onItemCancel = Scene_Battle.prototype.onItemCancel;
     Scene_Battle.prototype.onItemCancel = function() {
-        if (!useCTB && waitSelectSkillOrItem) {
+        if (!ATBConfig.useCTB && ATBConfig.waitSelectSkillOrItem) {
             BattleManager.toActive();
         }
         _Scene_Battle_onItemCancel.call(this);
@@ -1064,7 +1067,7 @@ v1.0.0 新規作成
     /* class Window_BattleStatus */
     const _Window_BattleStatus_drawGaugeAreaWithTp = Window_BattleStatus.prototype.drawGaugeAreaWithTp;
     Window_BattleStatus.prototype.drawGaugeAreaWithTp = function(rect, actor) {
-        if (drawUnderGauge) {
+        if (ATBConfig.drawUnderGauge) {
             _Window_BattleStatus_drawGaugeAreaWithTp.call(this, rect, actor);
         } else {
             this.drawActorHp(actor, rect.x + 0, rect.y, 108 * 0.8);
@@ -1076,7 +1079,7 @@ v1.0.0 新規作成
 
     const _Window_BattleStatus_drawGaugeAreaWithoutTp = Window_BattleStatus.prototype.drawGaugeAreaWithoutTp;
     Window_BattleStatus.prototype.drawGaugeAreaWithoutTp = function(rect, actor) {
-        if (drawUnderGauge) {
+        if (ATBConfig.drawUnderGauge) {
             _Window_BattleStatus_drawGaugeAreaWithoutTp.call(this, rect, actor);
         } else {
             _Window_BattleStatus_drawGaugeAreaWithoutTp.call(this, rect, actor);
@@ -1153,9 +1156,9 @@ v1.0.0 新規作成
     Spriteset_Battle.prototype.createGaugeLines = function() {
         for (let battler of BattleManager.allBattleMembers()) {
             if (battler instanceof Game_Enemy) {
-                if (drawEnemyUnderGauge) this._baseSprite.addChild(new Sprite_GaugeLine(battler));
+                if (ATBConfig.drawEnemyUnderGauge) this._baseSprite.addChild(new Sprite_GaugeLine(battler));
             } else {
-                if (drawUnderGauge) this._baseSprite.addChild(new Sprite_GaugeLine(battler));
+                if (ATBConfig.drawUnderGauge) this._baseSprite.addChild(new Sprite_GaugeLine(battler));
             }
         }
     };
