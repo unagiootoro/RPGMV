@@ -80,6 +80,7 @@ Shiftキーが押されている間、ゲージ進行を早送りするスピー
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.0.3 アクションが実行できなかった時にゲージがクリアされないバグを修正
 v1.0.2 外部からコンフィグを変更できるように修正
 v1.0.1 ターン終了時にSkillWaitのゲージ速度が変更されるバグを修正
 v1.0.0 新規作成
@@ -604,6 +605,14 @@ const ATBConfig = {};
         return this._actorCommandSelected;
     };
 
+    BattleManager.isActorCommandSelecting = function() {
+        return this._actorCommandSelecting;
+    };
+
+    BattleManager.setActorCommandSelecting = function(actorCommandSelecting) {
+        this._actorCommandSelecting = actorCommandSelecting;
+    };
+
     const _BattleManager_startBattle = BattleManager.startBattle;
     BattleManager.startBattle = function() {
         _BattleManager_startBattle.call(this);
@@ -687,6 +696,7 @@ const ATBConfig = {};
 
     BattleManager.afterAction = function() {
         this._beforeActionFinish = false;
+        this._subject.gauge().clear();
         this._atbManager.toActive();
         if (this._subject instanceof Game_Actor) {
             if (this._actorCommandSelected) {
@@ -717,6 +727,9 @@ const ATBConfig = {};
             }
         } else {
             this.afterAction();
+            if (this._subject.gauge().purpose === ATBGauge.PURPOSE_SKILL_WAIT) {
+                this._atbManager.skillWaitEnd(this._subject);
+            }
             subject.onAllActionsEnd();
             this.refreshStatus();
             this._logWindow.displayAutoAffectedStatus(subject);
@@ -738,15 +751,6 @@ const ATBConfig = {};
                 this._atbManager.toWait();
             }
             _BattleManager_startAction.call(this);
-        }
-    };
-
-    const _BattleManager_endAction = BattleManager.endAction;
-    BattleManager.endAction = function() {
-        _BattleManager_endAction.call(this);
-        this._subject.gauge().clear();
-        if (this._subject.gauge().purpose === ATBGauge.PURPOSE_SKILL_WAIT) {
-            this._atbManager.skillWaitEnd(this._subject);
         }
     };
 
@@ -942,12 +946,13 @@ const ATBConfig = {};
 
     const _Scene_Battle_startActorCommandSelected = Scene_Battle.prototype.startActorCommandSelection;
     Scene_Battle.prototype.startActorCommandSelection = function() {
-        if (!BattleManager._actorCommandSelecting) {
+        if (ATBConfig.useCTB) {
             _Scene_Battle_startActorCommandSelected.call(this);
-            if (ATBConfig.useCTB) {
-                BattleManager._actorCommandSelected = true;
-            } else {
-                BattleManager._actorCommandSelecting = true;
+            BattleManager.setActorCommandSelected(true);
+        } else {
+            if (!BattleManager.isActorCommandSelecting()) {
+                _Scene_Battle_startActorCommandSelected.call(this);
+                BattleManager.setActorCommandSelecting(true);
             }
         }
     };
@@ -965,7 +970,7 @@ const ATBConfig = {};
                 }
             } else {
                 // アクターウィンドウの選択が終了すると、アクターウィンドウを閉じる
-                if (!BattleManager._actorCommandSelecting) {
+                if (!BattleManager.isActorCommandSelecting()) {
                     this.endCommandSelection();
                 }
             }
