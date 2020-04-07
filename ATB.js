@@ -80,6 +80,7 @@ Shiftキーが押されている間、ゲージ進行を早送りするスピー
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.0.4 ATBが動かない不具合を修正
 v1.0.3 アクションが実行できなかった時にゲージがクリアされないバグを修正
 v1.0.2 外部からコンフィグを変更できるように修正
 v1.0.1 ターン終了時にSkillWaitのゲージ速度が変更されるバグを修正
@@ -696,14 +697,16 @@ const ATBConfig = {};
 
     BattleManager.afterAction = function() {
         this._beforeActionFinish = false;
-        this._subject.gauge().clear();
         this._atbManager.toActive();
-        if (this._subject instanceof Game_Actor) {
-            if (this._actorCommandSelected) {
-                this.setActorCommandSelected(false);
-            }
-        }
+        if (this._subject instanceof Game_Actor) this.setActorCommandSelected(false);
     };
+
+    BattleManager.resetGauge = function() {
+        this._subject.gauge().clear();
+        if (this._subject.gauge().purpose === ATBGauge.PURPOSE_SKILL_WAIT) {
+            this._atbManager.skillWaitEnd(this._subject);
+        }
+    }
 
     BattleManager.processTurn = function() {
         const subject = this._subject;
@@ -719,6 +722,8 @@ const ATBConfig = {};
                 action.prepare();
                 if (action.isValid()) {
                     this.startAction();
+                } else {
+                    this.resetGauge();
                 }
                 subject.removeCurrentAction();
             } else if (this._subject.gauge().purpose === ATBGauge.PURPOSE_SKILL_WAIT) {
@@ -727,9 +732,6 @@ const ATBConfig = {};
             }
         } else {
             this.afterAction();
-            if (this._subject.gauge().purpose === ATBGauge.PURPOSE_SKILL_WAIT) {
-                this._atbManager.skillWaitEnd(this._subject);
-            }
             subject.onAllActionsEnd();
             this.refreshStatus();
             this._logWindow.displayAutoAffectedStatus(subject);
@@ -752,6 +754,12 @@ const ATBConfig = {};
             }
             _BattleManager_startAction.call(this);
         }
+    };
+
+    const _BattleManager_endAction = BattleManager.endAction;
+    BattleManager.endAction = function() {
+        _BattleManager_endAction.call(this);
+        this.resetGauge();
     };
 
     const _BattleManager_endTurn = BattleManager.endTurn;
@@ -843,7 +851,7 @@ const ATBConfig = {};
     };
 
     BattleManager.startTurnATB = function() {
-        if (this._subject && this._subject.gauge()._clearWait) {
+        if (this._subject && !this._subject.gauge().isActionEnd()) {
             this._turnStartReserve = true;
             SceneManager._scene.changeInputWindow();
         } else {
@@ -854,7 +862,7 @@ const ATBConfig = {};
 
     BattleManager.startTurnAwait = function() {
         if (this._phase === "battleEnd") return;
-        if (this._subject && !this._subject.gauge()._clearWait) {
+        if (this._subject && this._subject.gauge().isActionEnd) {
             if (this._turnStartReserve) {
                 this._turnStartReserve = false;
                 this.startTurn();
