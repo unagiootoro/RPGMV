@@ -87,6 +87,8 @@ YEP_BattleEngineCoreとの競合を解決します。
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.1.1 逃走時、行動完了時に解除されるステートの経過ターンを更新するように修正
+       行動不能キャラがいるときにターンが経過しないバグを修正
 v1.1.0 アクターウィンドウでキャンセルするとパーティウィンドウに遷移するように変更
        CTBモード時、「YEP_BattleEngineCore.js」との競合に対応
        バグ修正
@@ -184,7 +186,7 @@ const ATBConfig = {};
             if (this._value > ATBManager.GAUGE_MAX) this.toFull();
         }
 
-        clearWait() {
+        toClearWait() {
             this._clearWait = true;
         }
 
@@ -248,7 +250,7 @@ const ATBConfig = {};
                 if (gauge.isFull()) {
                     if (gauge.purpose === ATBGauge.PURPOSE_TIME) gauge.battler().makeActions();
                     this._canActionMembers.push(gauge.battler());
-                    gauge.clearWait();
+                    gauge.toClearWait();
                 }
             }
         }
@@ -358,7 +360,7 @@ const ATBConfig = {};
             for (let battler of BattleManager.allBattleMembers()) {
                 if (battler.isAlive() && battler.canMove() ) numAllCanMoveMembers++;
             }
-            if (this._endActionBattlers.length === numAllCanMoveMembers) {
+            if (this._endActionBattlers.length >= numAllCanMoveMembers) {
                 return true;
             }
             return false;
@@ -410,6 +412,8 @@ const ATBConfig = {};
             this._canActionMembers = [];
             for (let actor of $gameParty.members()) {
                 actor.gauge().clear();
+                actor.updateStateTurns(1);
+                actor.removeStatesAuto(1);
             }
             for (let enemy of $gameTroop.members()) {
                 enemy.gauge().toFull();
@@ -432,6 +436,10 @@ const ATBConfig = {};
 
         addStateApply(battler, stateId) {
             const state = $dataStates[stateId];
+            // ステートの行動制約が「行動できない」の場合
+            if (state.restriction === 4) {
+                battler.gauge().clear();
+            }
             this.applyReduceGaugeState(battler, state);
             this.startQuickState(battler, state);
         }
