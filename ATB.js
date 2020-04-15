@@ -72,6 +72,10 @@ YEP_BattleEngineCoreとの競合を解決します。
 <Quick>
 と記載すると、ステートが付与されている間は、常にゲージが最大になります。
 
+ステートのメモ欄に
+<CancelAction>
+と記載すると、ステート付与時にゲージを0にしたうえで、キャラクターを行動した扱いにします。
+
 【仕様】
 ・内部的にはゲージの値は0～1000で管理され、毎フレームごとに増加します。
 ・ゲージが溜まる速さは次の計算式で決定します。
@@ -87,6 +91,9 @@ YEP_BattleEngineCoreとの競合を解決します。
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.1.2 メモ欄で設定可能な項目として「CancelWait」を追加
+       ReduceGauge適用時にアクション実行が解除されないバグを修正
+       行動制約があるステート付与時はゲージをクリアするように修正
 v1.1.1 逃走時、行動完了時に解除されるステートの経過ターンを更新するように修正
        行動不能キャラがいるときにターンが経過しないバグを修正
 v1.1.0 アクターウィンドウでキャンセルするとパーティウィンドウに遷移するように変更
@@ -145,6 +152,7 @@ const ATBConfig = {};
         }
 
         set value(_value) {
+            if (_value < ATBManager.GAUGE_MAX) this._clearWait = false;
             this._value = _value;
             if (this._value > ATBManager.GAUGE_MAX) this._value = ATBManager.GAUGE_MAX;
             if (this._value < 0) this._value = 0;
@@ -244,7 +252,7 @@ const ATBConfig = {};
         }
 
         updateTurn() {
-            if (!ATBConfig.useCTB) this.priorityEnemyAction();
+            if (!ATBConfig.useCTB) this.changeActionOrderToHighPriority();
             for (let gauge of this._gauges) {
                 if (gauge.battler().isDead()) gauge.value = 0;
                 if (gauge.isFull()) {
@@ -255,7 +263,7 @@ const ATBConfig = {};
             }
         }
 
-        priorityEnemyAction() {
+        changeActionOrderToHighPriority() {
             const actors = [];
             const enemies = [];
             for (let battler of this._canActionMembers) {
@@ -320,12 +328,16 @@ const ATBConfig = {};
 
         endAction(battler) {
             battler.gauge().clear();
-            if (this._endActionBattlers.indexOf(battler) === -1) {
-                this._endActionBattlers.push(battler);
-            }
-            if (battler.gauge().purpose === ATBGauge.PURPOSE_SKILL_WAIT) {
-                this.skillWaitEnd(battler);
-            }
+            if (this._endActionBattlers.indexOf(battler) === -1) this._endActionBattlers.push(battler);
+            if (battler.gauge().purpose === ATBGauge.PURPOSE_SKILL_WAIT) this.endSkillWait(battler);
+        }
+
+        cancelAction(battler) {
+            this.endAction(battler);
+            let i = this._canActionMembers.indexOf(battler);
+            if (i >= 0) this._canActionMembers.splice(i, 1);
+            battler.updateStateTurns(1);
+            battler.removeStatesAuto(1);
         }
 
         resetGaugeSpeed(battler, speed = battler.speed()) {
@@ -366,7 +378,7 @@ const ATBConfig = {};
             return false;
         }
 
-        skillWaitStart(battler) {
+        startSkillWait(battler) {
             battler.gauge().clear();
             const action = battler.currentAction();
             let skillWaitSpeed = (battler.speed() + action.item().speed);
@@ -375,7 +387,7 @@ const ATBConfig = {};
             battler.gauge().purpose = ATBGauge.PURPOSE_SKILL_WAIT;
         }
 
-        skillWaitEnd(battler) {
+        endSkillWait(battler) {
             battler.gauge().clear();
             this.resetGaugeSpeed(battler);
             battler.gauge().purpose = ATBGauge.PURPOSE_TIME;
@@ -392,10 +404,10 @@ const ATBConfig = {};
             return null;
         }
 
-        getNextEnemySubject() {
+        getNextHighPrioritySubject() {
             for (let i = 0; i < this._canActionMembers.length; i++) {
                 let subject = this._canActionMembers[i];
-                if (!(subject instanceof Game_Actor)) {
+                if (subject instanceof Game_Enemy || !subject.canInput()) {
                     this._canActionMembers.splice(i, 1);
                     return subject;
                 }
@@ -411,9 +423,7 @@ const ATBConfig = {};
             this._endActionBattlers = [];
             this._canActionMembers = [];
             for (let actor of $gameParty.members()) {
-                actor.gauge().clear();
-                actor.updateStateTurns(1);
-                actor.removeStatesAuto(1);
+                this.cancelAction(actor);
             }
             for (let enemy of $gameTroop.members()) {
                 enemy.gauge().toFull();
@@ -436,11 +446,8 @@ const ATBConfig = {};
 
         addStateApply(battler, stateId) {
             const state = $dataStates[stateId];
-            // ステートの行動制約が「行動できない」の場合
-            if (state.restriction === 4) {
-                battler.gauge().clear();
-            }
             this.applyReduceGaugeState(battler, state);
+            this.applyCancelActionState(battler, state);
             this.startQuickState(battler, state);
         }
 
@@ -458,7 +465,25 @@ const ATBConfig = {};
                     state._reduceGauge = null;
                 }
             }
-            if (state._reduceGauge) battler.gauge().value -= state._reduceGauge;
+            if (state._reduceGauge) {
+                battler.gauge().value -= state._reduceGauge;
+                battler.eraseState(state.id);
+            }
+        }
+
+        applyCancelActionState(battler, state) {
+            let matchData;
+            if (state._cancelAction === undefined) {
+                if (matchData = state.note.match(/<\s*CancelAction\s*>/)) {
+                    state._cancelAction = true;
+                } else {
+                    state._cancelAction = false;
+                }
+            }
+            if (state._cancelAction) {
+                this.cancelAction(battler);
+                battler.eraseState(state.id);
+            }
         }
 
         startQuickState(targetBattler, state) {
@@ -709,10 +734,10 @@ const ATBConfig = {};
         }
         if (this._subject) {
             if (!ATBConfig.useCTB && this._subject instanceof Game_Actor) {
-                const nextEnemySubject = this._atbManager.getNextEnemySubject();
-                if (nextEnemySubject) {
+                const nextHighPrioritySubject = this._atbManager.getNextHighPrioritySubject();
+                if (nextHighPrioritySubject) {
                     this._atbManager.addNextSubject(this._subject);
-                    this._subject = nextEnemySubject;
+                    this._subject = nextHighPrioritySubject;
                 }
             }
             this.processTurn();
@@ -736,7 +761,7 @@ const ATBConfig = {};
                 this.setActorCommandSelected(true);
             }
         } else if (action.isSkillWait()) {
-            this._atbManager.skillWaitStart(this._subject);
+            this._atbManager.startSkillWait(this._subject);
             this._subject.setActionState("waiting");
         } else {
             this._beforeActionFinish = true;
@@ -747,6 +772,12 @@ const ATBConfig = {};
         this._beforeActionFinish = false;
         this._atbManager.toActive("turn");
         if (this._subject instanceof Game_Actor) this.setActorCommandSelected(false);
+    };
+
+    Game_Action.prototype.prepare = function() {
+        if (this.subject().isConfused() && !this._forcing) {
+            this.setConfusion();
+        }
     };
 
     BattleManager.processTurn = function() {
@@ -937,6 +968,12 @@ const ATBConfig = {};
     }
 
     BattleManager.addStateApply = function(battler, stateId) {
+        const state = $dataStates[stateId];
+        // ステートに行動制約がある場合
+        if (state.restriction > 0) {
+            this._atbManager.cancelAction(battler);
+            this.actorCommandSelectCancel(battler);
+        }
         this._atbManager.addStateApply(battler, stateId);
     };
 
