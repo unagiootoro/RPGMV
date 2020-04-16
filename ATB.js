@@ -55,7 +55,6 @@ Shiftキーが押されている間、ゲージ進行を早送りするスピー
 @default false
 @desc
 YEP_BattleEngineCoreとの競合を解決します。
-このパラメータはCTBモードのときのみ有効です。
 
 @help
 【メモ欄で設定可能な項目】
@@ -91,6 +90,9 @@ YEP_BattleEngineCoreとの競合を解決します。
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.1.3 スキル選択時、エネミー選択画面で時間が進むバグを修正
+       waitAnimationが正しく動作しないバグを修正
+       ATBモード時、「YEP_BattleEngineCore.js」との競合に対応
 v1.1.2 メモ欄で設定可能な項目として「CancelWait」を追加
        ReduceGauge適用時にアクション実行が解除されないバグを修正
        行動制約があるステート付与時はゲージをクリアするように修正
@@ -821,7 +823,7 @@ const ATBConfig = {};
                 _BattleManager_startAction.call(this);
             }
         } else {
-            if (ATBConfig.useCTB || ATBConfig.waitSelectSkillOrItem) {
+            if (ATBConfig.useCTB || ATBConfig.waitAnimation) {
                 this._atbManager.toWait("turn");
             }
             _BattleManager_startAction.call(this);
@@ -847,6 +849,7 @@ const ATBConfig = {};
         } else {
             BattleManager.setActorCommandSelected(true);
             this._actorCommandSelecting = false;
+            this.toActiveSelectSkillOrItem();
             this.startTurnATB();
         }
     };
@@ -901,27 +904,64 @@ const ATBConfig = {};
         if (ATBConfig.useCTB) {
             _BattleManager_update.call(this);
         } else {
-            if (!this.isBusy() && !this.updateEvent()) {
-                switch (this._phase) {
-                case "start":
-                    this.startInput();
-                    break;
-                // ATBの場合は、input phaseの間でもターン更新を行う
-                case "input":
-                case "turn":
-                    this.startTurnAwait();
-                    this.updateTurn();
-                    break;
-                case "action":
-                    this.updateAction();
-                    break;
-                case "turnEnd":
-                    this.updateTurnEnd();
-                    break;
-                case "battleEnd":
-                    this.updateBattleEnd();
-                    break;
+            if (ATBConfig.enableYEP_BattleEngineCore) {
+
+                if (!this.isBusy() && !this.updateEvent()) {
+                    switch (this._phase) {
+                    case "start":
+                        this.startInput();
+                        break;
+                    case "input":
+                    case "turn":
+                        this.startTurnAwait();
+                        this.updateTurn();
+                        break;
+                    case "action":
+                        this.updateAction();
+                        break;
+                    case "phaseChange":
+                        this.updatePhase();
+                        break;
+                    case "actionList":
+                        this.updateActionList()
+                        break;
+                    case "actionTargetList":
+                        this.updateActionTargetList()
+                        break;
+                    case "turnEnd":
+                        this.updateTurnEnd();
+                        break;
+                    case "battleEnd":
+                        this.updateBattleEnd();
+                        break;
+                    }
                 }
+
+            } else {
+
+                if (!this.isBusy() && !this.updateEvent()) {
+                    switch (this._phase) {
+                    case "start":
+                        this.startInput();
+                        break;
+                    // ATBの場合は、input phaseの間でもターン更新を行う
+                    case "input":
+                    case "turn":
+                        this.startTurnAwait();
+                        this.updateTurn();
+                        break;
+                    case "action":
+                        this.updateAction();
+                        break;
+                    case "turnEnd":
+                        this.updateTurnEnd();
+                        break;
+                    case "battleEnd":
+                        this.updateBattleEnd();
+                        break;
+                    }
+                }
+
             }
         }
     };
@@ -991,8 +1031,27 @@ const ATBConfig = {};
     Scene_Battle.prototype.updateBattleProcess = function() {
         // CTBの場合は、BattleManager.updateTurn内でゲージを更新する
         if (!ATBConfig.useCTB) {
-            if (BattleManager._phase === "input" || BattleManager._phase === "turn") {
-                BattleManager.updateGauge();
+            if (ATBConfig.enableYEP_BattleEngineCore) {
+
+                switch (BattleManager._phase) {
+                    case "input":
+                    case "turn":
+                    case "action":
+                    case "phaseChange":
+                    case "actionList":
+                    case "actionTargetList":
+                        BattleManager.updateGauge();
+                }
+
+            } else {
+
+                switch (BattleManager._phase) {
+                    case "input":
+                    case "turn":
+                    case "action":
+                        BattleManager.updateGauge();
+                }
+
             }
         }
         if (!this.isAnyInputWindowActive() || BattleManager.isAborting() ||
@@ -1127,28 +1186,12 @@ const ATBConfig = {};
         _Scene_Battle_commandItem.call(this);
     };
 
-    const _Scene_Battle_onSkillOk = Scene_Battle.prototype.onSkillOk;
-    Scene_Battle.prototype.onSkillOk = function() {
-        if (!ATBConfig.useCTB && ATBConfig.waitSelectSkillOrItem) {
-            BattleManager.toActiveSelectSkillOrItem();
-        }
-        _Scene_Battle_onSkillOk.call(this);
-    };
-
     const _Scene_Battle_onSkillCancel = Scene_Battle.prototype.onSkillCancel;
     Scene_Battle.prototype.onSkillCancel = function() {
         if (!ATBConfig.useCTB && ATBConfig.waitSelectSkillOrItem) {
             BattleManager.toActiveSelectSkillOrItem();
         }
         _Scene_Battle_onSkillCancel.call(this);
-    };
-
-    const _Scene_Battle_onItemOk = Scene_Battle.prototype.onItemOk;
-    Scene_Battle.prototype.onItemOk = function() {
-        if (!ATBConfig.useCTB && ATBConfig.waitSelectSkillOrItem) {
-            BattleManager.toActiveSelectSkillOrItem();
-        }
-        _Scene_Battle_onItemOk.call(this);
     };
 
     const _Scene_Battle_onItemCancel = Scene_Battle.prototype.onItemCancel;
