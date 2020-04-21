@@ -82,12 +82,14 @@ YEP_BattleEngineCoreとの競合を解決します。
 と記載すると、ステート付与時にゲージを0にしたうえで、キャラクターを行動した扱いにします。
 
 【仕様】
-・内部的にはゲージの値は0～1000で管理され、毎フレームごとに増加します。
+・内部的にはゲージの値は0～1000で管理され、2フレームごとに増加します。
 ・ゲージが溜まる速さは次の計算式で決定します。
 　　ゲージスピード = (素早さ / 全キャラクターの素早さの最小値) * baseGaugeSpeed * fastForward
 ・スキル待機時間は次の計算式で決定します。
 　　スキル待機時間 = (ゲージスピード + スキルの速度補正 + 攻撃速度補正) * baseSkillWaitGaugeSpeed
-・戦闘における1ターンの経過は、全キャラクターの行動が終わった段階で1ターン経過とみなします。
+・戦闘における1ターンの経過は、内部で保持している経過時間が1000以上になった時に1ターン経過とみなします。
+　経過時間は次の計算式で決定し、2フレームごとに増加します。
+　　経過時間 = baseGaugeSpeed * fastForward
 ・ステートの自動解除のタイミングを「行動終了時」にした場合、ターンではなく、
 キャラクターが行動した回数が継続ターン数に達したときにステートが解除されます。
 ・Shiftキーを押すと、ゲージが溜まるのを早送りすることができます。
@@ -97,6 +99,8 @@ YEP_BattleEngineCoreとの競合を解決します。
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.2.1 1ターン経過判定の条件を経過時間によって判定するように変更
+       ゲージ更新を2フレームごとに行うように変更
 v1.2.0 pageupで選択中のアクターを切り替えられるように変更
        CTBモードを廃止し、waitCommandSelectionを追加
        バグ修正
@@ -136,6 +140,55 @@ const ATBConfig = {};
     ATBConfig.enableYEP_BattleEngineCore = (param["enableYEP_BattleEngineCore"] === "true" ? true : false);
     ATBConfig.drawUnderGauge = false;
 
+
+    class ATBTimer {
+        constructor(maxValue) {
+            this._speed = 1;
+            this._maxValue = maxValue;
+            this._value = 0;
+        }
+
+        set value(_value) {
+            this._value = _value;
+            if (this._value > this._maxValue) this.toFull();
+            if (this._value < 0) this._value = 0;
+        }
+
+        get value() {
+            return this._value;
+        }
+
+        toFull() {
+            this._value = ATBManager.GAUGE_MAX;
+        }
+
+        isFull() {
+            return this._value === this._maxValue;
+        }
+
+        changeSpeed(speed) {
+            this._speed = speed;
+        }
+
+        toFull() {
+            this._value = this._maxValue;
+        }
+
+        isFull() {
+            return this._value === this._maxValue;
+        }
+
+        increment(fastForwardSpeed = 1) {
+            this._value += this._speed * ATBConfig.baseGaugeSpeed * fastForwardSpeed;
+            if (this._value > this._maxValue) this.toFull();
+        }
+
+        clear() {
+            this._value = 0;
+        }
+    }
+
+
     class ATBGauge {
         static get PURPOSE_TIME() {
             return "PURPOSE_TIME";
@@ -147,8 +200,7 @@ const ATBConfig = {};
 
         constructor(battler) {
             this._battler = battler;
-            this._speed = 1;
-            this._value = 0;
+            this._timer = new ATBTimer(ATBManager.GAUGE_MAX);
             this._purpose = ATBGauge.PURPOSE_TIME;
             this._stop = false;
             this._clearWait = false;
@@ -166,13 +218,11 @@ const ATBConfig = {};
 
         set value(_value) {
             if (_value < ATBManager.GAUGE_MAX) this._clearWait = false;
-            this._value = _value;
-            if (this._value > ATBManager.GAUGE_MAX) this._value = ATBManager.GAUGE_MAX;
-            if (this._value < 0) this._value = 0;
+            this._timer.value = _value;
         }
 
         get value() {
-            return this._value;
+            return this._timer.value;
         }
 
         battler() {
@@ -181,17 +231,17 @@ const ATBConfig = {};
 
         changeSpeed(speed) {
             if (speed > ATBConfig.maxActionCount) speed = ATBConfig.maxActionCount;
-            this._speed = speed;
+            this._timer.changeSpeed(speed);
         }
 
         toFull() {
-            this._value = ATBManager.GAUGE_MAX;
+            this._timer.toFull();
         }
 
         isFull() {
             if (this._stop) return false;
             if (this._clearWait) return false;
-            return this._value === ATBManager.GAUGE_MAX;
+            return this._timer.isFull();
         }
 
         increment(fastForwardSpeed = 1) {
@@ -203,8 +253,7 @@ const ATBConfig = {};
                 this.toFull();
                 return;
             }
-            this._value += this._speed * ATBConfig.baseGaugeSpeed * fastForwardSpeed;
-            if (this._value > ATBManager.GAUGE_MAX) this.toFull();
+            this._timer.increment(fastForwardSpeed);
         }
 
         toClearWait() {
@@ -212,7 +261,7 @@ const ATBConfig = {};
         }
 
         clear() {
-            this._value = 0;
+            this._timer.clear();
             this._clearWait = false;
         }
 
@@ -282,7 +331,7 @@ const ATBConfig = {};
 
         constructor() {
             this._holdAllBattleMembers = [];
-            this._endActionBattlers = [];
+            this._turnDurationTimeCounter = new ATBTimer(ATBManager.GAUGE_MAX);
             this._canActionMembers = [];
             this._gauges = [];
             this._wait = {};
@@ -310,6 +359,8 @@ const ATBConfig = {};
 
         updateGauge() {
             if (!this.isActive()) return;
+            if (Graphics.frameCount % 2 === 0) return;
+            this._turnDurationTimeCounter.increment(this.fastForwardSpeed());
             for (let gauge of this._gauges) {
                 gauge.increment(this.fastForwardSpeed());
             }
@@ -322,7 +373,7 @@ const ATBConfig = {};
         }
 
         endTurn() {
-            this._endActionBattlers = [];
+            this._turnDurationTimeCounter.clear();
         }
 
         toActive(factor) {
@@ -366,7 +417,6 @@ const ATBConfig = {};
             battler.gauge().clear();
             let i = this._canActionMembers.indexOf(battler);
             if (i >= 0) this._canActionMembers.splice(i, 1);
-            if (this._endActionBattlers.indexOf(battler) === -1) this._endActionBattlers.push(battler);
             if (battler.gauge().purpose === ATBGauge.PURPOSE_SKILL_WAIT) this.endSkillWait(battler);
         }
 
@@ -404,14 +454,7 @@ const ATBConfig = {};
         }
 
         isEndTurn() {
-            let numAllCanMoveMembers = 0;
-            for (let battler of BattleManager.allBattleMembers()) {
-                if (battler.isAlive() && battler.canMove() ) numAllCanMoveMembers++;
-            }
-            if (this._endActionBattlers.length >= numAllCanMoveMembers) {
-                return true;
-            }
-            return false;
+            return this._turnDurationTimeCounter.isFull();
         }
 
         startSkillWait(battler) {
@@ -481,7 +524,7 @@ const ATBConfig = {};
         }
 
         escapeFailed() {
-            this._endActionBattlers = [];
+            this._turnDurationTimeCounter.clear();
             this._canActionMembers = [];
             for (let actor of $gameParty.members()) {
                 this.cancelAction(actor);
@@ -790,7 +833,7 @@ const ATBConfig = {};
             this.processTurn();
         }
         if ((this._phase === "input" || this._phase === "turn") && this._atbManager.isEndTurn()) {
-            if (this._phase === "input") this.actor().gauge().commandSelectCancel();
+            if (this.actor() && SceneManager._scene._actorCommandWindow.active) this.actor().gauge().commandSelectCancel();
             this._atbManager.endTurn();
             this.endTurn();
         }
@@ -820,12 +863,6 @@ const ATBConfig = {};
         this._atbManager.toActive("turn");
         if (this._subject instanceof Game_Actor && this._subject.gauge().purpose === ATBGauge.PURPOSE_TIME) {
             this._subject.gauge().setCommandSelected(false);
-        }
-    };
-
-    Game_Action.prototype.prepare = function() {
-        if (this.subject().isConfused() && !this._forcing) {
-            this.setConfusion();
         }
     };
 
