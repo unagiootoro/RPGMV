@@ -99,6 +99,7 @@ YEP_BattleEngineCoreとの競合を解決します。
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.2.3 ATBAliasを追加
 v1.2.2 スキル待機時間が正しく計算されないバグを修正
        エラーが発生するバグを修正
        「YEP_BattleEngineCore.js」併用時にターンが更新されないバグを修正
@@ -126,6 +127,7 @@ v1.0.0 新規作成
 */
 
 const ATBConfig = {};
+const ATBAlias = {};
 
 {
     "use strict";
@@ -623,27 +625,27 @@ const ATBConfig = {};
 
 
     /* class Game_BattlerBase */
-    const _Game_BattlerBase_clearStates = Game_BattlerBase.prototype.clearStates;
+    ATBAlias._Game_BattlerBase_clearStates = Game_BattlerBase.prototype.clearStates;
     Game_BattlerBase.prototype.clearStates = function() {
         if (SceneManager._scene instanceof Scene_Battle) {
             for (let stateId of this._states) {
                 BattleManager.eraseStateApply(this, stateId);
             }
         }
-        _Game_BattlerBase_clearStates.call(this);
+        ATBAlias._Game_BattlerBase_clearStates.call(this);
     };
 
-    const _Game_BattlerBase_addNewState = Game_BattlerBase.prototype.addNewState;
+    ATBAlias._Game_BattlerBase_addNewState = Game_BattlerBase.prototype.addNewState;
     Game_BattlerBase.prototype.addNewState = function(stateId) {
-        _Game_BattlerBase_addNewState.call(this, stateId);
+        ATBAlias._Game_BattlerBase_addNewState.call(this, stateId);
         if (SceneManager._scene instanceof Scene_Battle) {
             BattleManager.addStateApply(this, stateId);
         }
     };
 
-    const _Game_BattlerBase_eraseState = Game_BattlerBase.prototype.eraseState;
+    ATBAlias._Game_BattlerBase_eraseState = Game_BattlerBase.prototype.eraseState;
     Game_BattlerBase.prototype.eraseState = function(stateId) {
-        _Game_BattlerBase_eraseState.call(this, stateId);
+        ATBAlias._Game_BattlerBase_eraseState.call(this, stateId);
         if (SceneManager._scene instanceof Scene_Battle) {
             BattleManager.eraseStateApply(this, stateId);
         }
@@ -662,9 +664,9 @@ const ATBConfig = {};
 
 
     /* class Game_Battler */
-    const _Game_Battler_initMembers = Game_Battler.prototype.initMembers;
+    ATBAlias._Game_Battler_initMembers = Game_Battler.prototype.initMembers;
     Game_Battler.prototype.initMembers = function() {
-        _Game_Battler_initMembers.call(this);
+        ATBAlias._Game_Battler_initMembers.call(this);
         this._gauge = null;
     };
 
@@ -687,9 +689,9 @@ const ATBConfig = {};
     };
 
     // 行動終了時のステート解除判定後にステート経過ターンを更新する
-    const _Game_Battler_onAllActionsEnd = Game_Battler.prototype.onAllActionsEnd;
+    ATBAlias._Game_Battler_onAllActionsEnd = Game_Battler.prototype.onAllActionsEnd;
     Game_Battler.prototype.onAllActionsEnd = function() {
-        _Game_Battler_onAllActionsEnd.call(this);
+        ATBAlias._Game_Battler_onAllActionsEnd.call(this);
         this.updateStateTurns(1);
     };
 
@@ -706,11 +708,11 @@ const ATBConfig = {};
 
 
     /* class Game_Actor */
-    const _Game_BattlerBase_die = Game_BattlerBase.prototype.die;
+    ATBAlias._Game_BattlerBase_die = Game_BattlerBase.prototype.die;
     Game_Actor.prototype.die = function() {
         this.gauge().commandSelectCancel();
         BattleManager._atbManager.endAction(this);
-        _Game_BattlerBase_die.call(this);
+        ATBAlias._Game_BattlerBase_die.call(this);
     };
 
 
@@ -736,9 +738,9 @@ const ATBConfig = {};
 
 
     /* singleton class BattleManager */
-    const _BattleManager_initMembers = BattleManager.initMembers;
+    ATBAlias._BattleManager_initMembers = BattleManager.initMembers;
     BattleManager.initMembers = function() {
-        _BattleManager_initMembers.call(this);
+        ATBAlias._BattleManager_initMembers.call(this);
         this._turnStarted = false;
         this._beforeActionFinish = false;
         this._turnStartReserve = false;
@@ -753,9 +755,9 @@ const ATBConfig = {};
         this._actorIndex = $gameParty.members().indexOf(actor);
     };
 
-    const _BattleManager_startBattle = BattleManager.startBattle;
+    ATBAlias._BattleManager_startBattle = BattleManager.startBattle;
     BattleManager.startBattle = function() {
-        _BattleManager_startBattle.call(this);
+        ATBAlias._BattleManager_startBattle.call(this);
         this._atbManager.startBattle();
         if (this._surprise) {
             this._atbManager.surprise();
@@ -770,7 +772,7 @@ const ATBConfig = {};
         this.startTurn();
     };
 
-    const _BattleManager_startTurn = BattleManager.startTurn;
+    ATBAlias._BattleManager_startTurn = BattleManager.startTurn;
     BattleManager.startTurn = function() {
         if (this._turnStarted) {
             this._phase = "turn";
@@ -787,7 +789,7 @@ const ATBConfig = {};
                 $gameParty.requestMotionRefresh();
                 this._logWindow.startTurn();
             } else {
-                _BattleManager_startTurn.call(this);
+                ATBAlias._BattleManager_startTurn.call(this);
             }
             this._atbManager.toActive("turn");
             this._atbManager.startTurn();
@@ -886,28 +888,28 @@ const ATBConfig = {};
         if (ATBConfig.enableYEP_BattleEngineCore) this._processTurn = false;
     };
 
-    const _BattleManager_startAction = BattleManager.startAction;
+    ATBAlias._BattleManager_startAction = BattleManager.startAction;
     BattleManager.startAction = function() {
         if (this._subject instanceof Game_Actor) {
             if (this._subject.gauge().isCommandSelected()) {
                 if (ATBConfig.waitAnimation) this._atbManager.toWait("turn");
-                _BattleManager_startAction.call(this);
+                ATBAlias._BattleManager_startAction.call(this);
             }
         } else {
             if (ATBConfig.waitCommandSelection || ATBConfig.waitAnimation) {
                 this._atbManager.toWait("turn");
             }
-            _BattleManager_startAction.call(this);
+            ATBAlias._BattleManager_startAction.call(this);
         }
     };
 
-    const _BattleManager_endAction = BattleManager.endAction;
+    ATBAlias._BattleManager_endAction = BattleManager.endAction;
     BattleManager.endAction = function() {
-        _BattleManager_endAction.call(this);
+        ATBAlias._BattleManager_endAction.call(this);
         this._atbManager.endAction(this._subject);
     };
 
-    const _BattleManager_endTurn = BattleManager.endTurn;
+    ATBAlias._BattleManager_endTurn = BattleManager.endTurn;
     BattleManager.endTurn = function() {
         if (ATBConfig.enableYEP_BattleEngineCore) {
 
@@ -918,14 +920,14 @@ const ATBConfig = {};
               return;
             }
             this._enteredEndPhase = true;
-            Yanfly.BEC.BattleManager_endTurn.call(this);
+            Yanfly.BEC.BattleManagerATBAlias._endTurn.call(this);
             BattleManager.refreshAllMembers();
             this.actor().gauge().commandSelectCancel();
             this._turnStarted = false;
 
         } else {
 
-            _BattleManager_endTurn.call(this);
+            ATBAlias._BattleManager_endTurn.call(this);
             this._turnStarted = false;
 
         }
@@ -967,9 +969,9 @@ const ATBConfig = {};
         return success;
     };
 
-    const _BattleManager_isInputting = BattleManager.isInputting;
+    ATBAlias._BattleManager_isInputting = BattleManager.isInputting;
     BattleManager.isInputting = function() {
-        return _BattleManager_isInputting.call(this) && !this._turnStartReserve;
+        return ATBAlias._BattleManager_isInputting.call(this) && !this._turnStartReserve;
     };
 
     BattleManager.update = function() {
@@ -1122,9 +1124,9 @@ const ATBConfig = {};
 
 
     /* class Scene_Battle */
-    const _Scene_Battle_update = Scene_Battle.prototype.update;
+    ATBAlias._Scene_Battle_update = Scene_Battle.prototype.update;
     Scene_Battle.prototype.update = function() {
-        _Scene_Battle_update.call(this);
+        ATBAlias._Scene_Battle_update.call(this);
         this.updateActorCommandWindow();
     };
 
@@ -1186,22 +1188,22 @@ const ATBConfig = {};
     };
 
     // パーティコマンド選択時はポーズする
-    const _Scene_Battle_startPartyCommandSelection = Scene_Battle.prototype.startPartyCommandSelection;
+    ATBAlias._Scene_Battle_startPartyCommandSelection = Scene_Battle.prototype.startPartyCommandSelection;
     Scene_Battle.prototype.startPartyCommandSelection = function() {
         BattleManager.startPause();
         if (ATBConfig.enableYEP_BattleEngineCore) {
-            Yanfly.BEC.Scene_Battle_startPartyCommandSelection.call(this);
+            Yanfly.BEC.SceneATBAlias._Battle_startPartyCommandSelection.call(this);
         } else {
-            _Scene_Battle_startPartyCommandSelection.call(this);
+            ATBAlias._Scene_Battle_startPartyCommandSelection.call(this);
         }
     };
 
-    const _Scene_Battle_startActorCommandSelection = Scene_Battle.prototype.startActorCommandSelection;
+    ATBAlias._Scene_Battle_startActorCommandSelection = Scene_Battle.prototype.startActorCommandSelection;
     Scene_Battle.prototype.startActorCommandSelection = function() {
         if (ATBConfig.enableYEP_BattleEngineCore) {
 
             if (!BattleManager.actor().gauge().isCommandSelecting()) {
-                Yanfly.BEC.Scene_Battle_startActorCommandSelection.call(this);
+                Yanfly.BEC.SceneATBAlias._Battle_startActorCommandSelection.call(this);
                 this._statusWindow.refresh();
                 BattleManager.actor().gauge().setCommandSelecting(true);
             }
@@ -1209,7 +1211,7 @@ const ATBConfig = {};
         } else {
 
             if (!BattleManager.actor().gauge().isCommandSelecting()) {
-                _Scene_Battle_startActorCommandSelection.call(this);
+                ATBAlias._Scene_Battle_startActorCommandSelection.call(this);
                 BattleManager.actor().gauge().setCommandSelecting(true);
             }
 
@@ -1232,7 +1234,7 @@ const ATBConfig = {};
     };
 
     // ATB時は、ステータスウィンドウを移動しないようにする
-    const _Scene_Battle_updateWindowPositions = Scene_Battle.prototype.updateWindowPositions;
+    ATBAlias._Scene_Battle_updateWindowPositions = Scene_Battle.prototype.updateWindowPositions;
     Scene_Battle.prototype.updateWindowPositions = function() {
         statusX = this._partyCommandWindow.width;
         if (this._statusWindow.x < statusX) {
@@ -1250,52 +1252,52 @@ const ATBConfig = {};
     };
 
     // ATB時は、パーティコマンドが開いているとき以外は時間を進める
-    const _Scene_Battle_isAnyInputWindowActive = Scene_Battle.prototype.isAnyInputWindowActive;
+    ATBAlias._Scene_Battle_isAnyInputWindowActive = Scene_Battle.prototype.isAnyInputWindowActive;
     Scene_Battle.prototype.isAnyInputWindowActive = function() {
         if (ATBConfig.waitCommandSelection) {
-            return _Scene_Battle_isAnyInputWindowActive.call(this);
+            return ATBAlias._Scene_Battle_isAnyInputWindowActive.call(this);
         }
         return this._partyCommandWindow.active;
     };
 
-    const _Scene_Battle_commandSkill =  Scene_Battle.prototype.commandSkill;
+    ATBAlias._Scene_Battle_commandSkill =  Scene_Battle.prototype.commandSkill;
     Scene_Battle.prototype.commandSkill = function() {
         if (!ATBConfig.waitCommandSelection && ATBConfig.waitSelectSkillOrItem) {
             BattleManager.toWaitSelectSkillOrItem();
         }
-        _Scene_Battle_commandSkill.call(this);
+        ATBAlias._Scene_Battle_commandSkill.call(this);
     };
 
-    const _Scene_Battle_commandItem = Scene_Battle.prototype.commandItem;
+    ATBAlias._Scene_Battle_commandItem = Scene_Battle.prototype.commandItem;
     Scene_Battle.prototype.commandItem = function() {
         if (!ATBConfig.waitCommandSelection && ATBConfig.waitSelectSkillOrItem) {
             BattleManager.toWaitSelectSkillOrItem();
         }
-        _Scene_Battle_commandItem.call(this);
+        ATBAlias._Scene_Battle_commandItem.call(this);
     };
 
-    const _Scene_Battle_onSkillCancel = Scene_Battle.prototype.onSkillCancel;
+    ATBAlias._Scene_Battle_onSkillCancel = Scene_Battle.prototype.onSkillCancel;
     Scene_Battle.prototype.onSkillCancel = function() {
         if (!ATBConfig.waitCommandSelection && ATBConfig.waitSelectSkillOrItem) {
             BattleManager.toActiveSelectSkillOrItem();
         }
-        _Scene_Battle_onSkillCancel.call(this);
+        ATBAlias._Scene_Battle_onSkillCancel.call(this);
     };
 
-    const _Scene_Battle_onItemCancel = Scene_Battle.prototype.onItemCancel;
+    ATBAlias._Scene_Battle_onItemCancel = Scene_Battle.prototype.onItemCancel;
     Scene_Battle.prototype.onItemCancel = function() {
         if (!ATBConfig.waitCommandSelection && ATBConfig.waitSelectSkillOrItem) {
             BattleManager.toActiveSelectSkillOrItem();
         }
-        _Scene_Battle_onItemCancel.call(this);
+        ATBAlias._Scene_Battle_onItemCancel.call(this);
     };
 
 
     /* class Window_BattleStatus */
-    const _Window_BattleStatus_drawGaugeAreaWithTp = Window_BattleStatus.prototype.drawGaugeAreaWithTp;
+    ATBAlias._Window_BattleStatus_drawGaugeAreaWithTp = Window_BattleStatus.prototype.drawGaugeAreaWithTp;
     Window_BattleStatus.prototype.drawGaugeAreaWithTp = function(rect, actor) {
         if (ATBConfig.drawUnderGauge) {
-            _Window_BattleStatus_drawGaugeAreaWithTp.call(this, rect, actor);
+            ATBAlias._Window_BattleStatus_drawGaugeAreaWithTp.call(this, rect, actor);
         } else {
             this.drawActorHp(actor, rect.x + 0, rect.y, 108 * 0.8);
             this.drawActorMp(actor, rect.x + 123 * 0.8, rect.y, 96 * 0.8);
@@ -1304,12 +1306,12 @@ const ATBConfig = {};
         }
     };
 
-    const _Window_BattleStatus_drawGaugeAreaWithoutTp = Window_BattleStatus.prototype.drawGaugeAreaWithoutTp;
+    ATBAlias._Window_BattleStatus_drawGaugeAreaWithoutTp = Window_BattleStatus.prototype.drawGaugeAreaWithoutTp;
     Window_BattleStatus.prototype.drawGaugeAreaWithoutTp = function(rect, actor) {
         if (ATBConfig.drawUnderGauge) {
-            _Window_BattleStatus_drawGaugeAreaWithoutTp.call(this, rect, actor);
+            ATBAlias._Window_BattleStatus_drawGaugeAreaWithoutTp.call(this, rect, actor);
         } else {
-            _Window_BattleStatus_drawGaugeAreaWithoutTp.call(this, rect, actor);
+            ATBAlias._Window_BattleStatus_drawGaugeAreaWithoutTp.call(this, rect, actor);
             this.drawActorCt(actor, rect.x + 234, rect.y, 96);
         }
     };
