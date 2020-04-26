@@ -99,6 +99,7 @@ YEP_BattleEngineCoreとの競合を解決します。
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.2.4 クラス名のエイリアスをATBAliasに追加
 v1.2.3 ATBAliasを追加
 v1.2.2 スキル待機時間が正しく計算されないバグを修正
        エラーが発生するバグを修正
@@ -671,10 +672,7 @@ const ATBAlias = {};
     };
 
     Game_Battler.prototype.getSprite = function() {
-        const actorSprites = BattleManager._spriteset._actorSprites;
-        const enemySprites = BattleManager._spriteset._enemySprites;
-        const battlerSprites = actorSprites.concat(enemySprites);
-        for (let sprite of battlerSprites) {
+        for (let sprite of BattleManager._spriteset.battlerSprites()) {
             if (sprite._battler === this) return sprite;
         }
         return null;
@@ -1391,5 +1389,14 @@ const ATBAlias = {};
             }
         }
     };
+
+
+    // クラス名のエイリアス
+    ATBAlias.ATBTimer = ATBTimer;
+    ATBAlias.ATBGauge = ATBGauge;
+    ATBAlias.ActorGauge = ActorGauge;
+    ATBAlias.EnemyGauge = EnemyGauge;
+    ATBAlias.ATBManager = ATBManager;
+    ATBAlias.Sprite_GaugeLine = Sprite_GaugeLine;
 
 };
