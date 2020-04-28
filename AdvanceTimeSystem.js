@@ -33,7 +33,7 @@
     @desc 夜明けの時間の長さ(単位は歩数)
 
     @help
-    時間経過システム ver1.0.1
+    時間経過システム ver1.0.3
 
     歩くたびに時間が経過する古典的な時間経過システムを導入するプラグインです。
     時間帯には、朝、昼、夕方、夜、深夜、夜明けを使用できます。
@@ -67,12 +67,15 @@
     となります。
 
     [更新履歴]
+    ver1.0.3    use strict追加
     ver1.0.2    デバッグ用のconsole.logを削除
     ver1.0.1    プラグインヘルプを修正
     ver1.0.0    公開
 */
 
 {
+    "use strict";
+
     const Morning = 0
     const Noon = 1
     const Evening = 2
@@ -178,7 +181,7 @@
     }
 
     Game_Map.prototype.getEncounterTimezone = function(encounter) {
-        troop = $dataTroops[encounter.troopId]
+        const troop = $dataTroops[encounter.troopId]
         if (troop.name.match(/^<(.+)>/)) {
             switch (RegExp.$1) {
             case "朝":
@@ -219,7 +222,7 @@
         if (this._nightBgm === undefined) {
             if ($dataMap.note.match(/^<夜BGM:\s*(.+)>/)) {
                 const bgmName = RegExp.$1
-                bgm = {
+                const bgm = {
                     name: bgmName,
                     pan: $dataMap.bgm.pan,
                     pitch: $dataMap.bgm.pitch,
