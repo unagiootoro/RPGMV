@@ -74,6 +74,11 @@ YEP_BattleEngineCoreとの競合を解決します。
 減少値は1～1000の間で指定してください。
 
 ステートのメモ欄に
+<IntervalGainHp gainValue=増加値 duration=時間間隔>
+と記載すると、ステートが付与されている間、durationの経過時間ごとにgainValueで指定した値だけ
+HPを増加させます。gainValueにマイナスの値を指定することで、HPを減少させることもできます。
+
+ステートのメモ欄に
 <Quick>
 と記載すると、ステートが付与されている間は、常にゲージが最大になります。
 
@@ -99,6 +104,8 @@ YEP_BattleEngineCoreとの競合を解決します。
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.3.0 時間経過でHPが増減させるステートを作成可能に変更
+       戦闘途中で追加されたバトラーにゲージスプライトが追加されないバグを修正
 v1.2.4 クラス名のエイリアスをATBAliasに追加
 v1.2.3 ATBAliasを追加
 v1.2.2 スキル待機時間が正しく計算されないバグを修正
@@ -149,8 +156,8 @@ const ATBAlias = {};
 
     class ATBTimer {
         constructor(maxValue) {
-            this._speed = 1;
             this._maxValue = maxValue;
+            this._speed = 1;
             this._value = 0;
         }
 
@@ -241,13 +248,18 @@ const ATBAlias = {};
         increment(fastForwardSpeed = 1) {
             if (this._stop) return;
             if (this._clearWait) return;
-            if (this._battler.isDead()) return;
-            if (!this._battler.canMove()) return;
+            if (!this.isUsable()) return;
             if (this._quick) {
                 this.toFull();
                 return;
             }
             this._timer.increment(fastForwardSpeed);
+        }
+
+        isUsable() {
+            if (this._battler.isDead()) return false;
+            if (!this._battler.canMove()) return false;
+            return true;
         }
 
         toClearWait() {
@@ -290,6 +302,7 @@ const ATBAlias = {};
             super(battler);
             this._commandSelecting = false;
             this._commandSelected = false;
+            if (ATBConfig.drawUnderGauge) BattleManager.spriteset().createGaugeLine(battler);
         }
     
         setCommandSelecting(commandSelecting) {
@@ -315,7 +328,38 @@ const ATBAlias = {};
     }
 
 
-    class EnemyGauge extends ATBGauge {}
+    class EnemyGauge extends ATBGauge {
+        constructor(battler) {
+            super(battler);
+            if (ATBConfig.drawEnemyUnderGauge) BattleManager.spriteset().createGaugeLine(battler);
+        }
+    }
+
+
+    class GainHpTimer extends ATBTimer {
+        constructor(maxValue, gainValue, battler, stateId) {
+            super(maxValue);
+            this._gainValue = gainValue;
+            this._battler = battler;
+            this._stateId = stateId;
+        }
+
+        battler() {
+            return this._battler;
+        }
+
+        stateId() {
+            return this._stateId;
+        }
+
+        increment(fastForwardSpeed = 1) {
+            super.increment(fastForwardSpeed);
+            if (this.isTimeout()) {
+                this._battler.gainHp(this._gainValue);
+                this.clear();
+            }
+        }
+    }
 
 
     class ATBManager {
@@ -325,7 +369,8 @@ const ATBAlias = {};
 
         constructor() {
             this._holdAllBattleMembers = [];
-            this._turnDurationTimeCounter = new ATBTimer(ATBManager.GAUGE_MAX);
+            this._turnDurationTimer = new ATBTimer(ATBManager.GAUGE_MAX);
+            this._timers = [this._turnDurationTimer];
             this._canActionMembers = [];
             this._gauges = [];
             this._wait = {};
@@ -354,7 +399,9 @@ const ATBAlias = {};
         updateGauge() {
             if (!this.isActive()) return;
             if (Graphics.frameCount % 2 === 0) return;
-            this._turnDurationTimeCounter.increment(this.fastForwardSpeed());
+            for (let timer of this._timers) {
+                timer.increment(this.fastForwardSpeed());
+            }
             for (let gauge of this._gauges) {
                 gauge.increment(this.fastForwardSpeed());
             }
@@ -367,7 +414,7 @@ const ATBAlias = {};
         }
 
         endTurn() {
-            this._turnDurationTimeCounter.clear();
+            this._turnDurationTimer.clear();
         }
 
         toActive(factor) {
@@ -448,7 +495,7 @@ const ATBAlias = {};
         }
 
         isEndTurn() {
-            return this._turnDurationTimeCounter.isTimeout();
+            return this._turnDurationTimer.isTimeout();
         }
 
         startSkillWait(battler) {
@@ -518,7 +565,7 @@ const ATBAlias = {};
         }
 
         escapeFailed() {
-            this._turnDurationTimeCounter.clear();
+            this._turnDurationTimer.clear();
             this._canActionMembers = [];
             for (let actor of $gameParty.members()) {
                 this.cancelAction(actor);
@@ -550,6 +597,7 @@ const ATBAlias = {};
                 if (battler instanceof Game_Actor) battler.gauge().commandSelectCancel();
             }
             this.applyReduceGaugeState(battler, state);
+            this.applyIntervalGainHp(battler, state);
             this.applyCancelActionState(battler, state);
             this.startQuickState(battler, state);
         }
@@ -561,6 +609,7 @@ const ATBAlias = {};
                 this.endAction(battler);
                 if (battler instanceof Game_Actor) battler.gauge().commandSelectCancel();
             }
+            this.endIntervalGainHp(battler, state);
             this.endQuickState(battler, state);
         }
 
@@ -579,10 +628,34 @@ const ATBAlias = {};
             }
         }
 
-        applyCancelActionState(battler, state) {
+        applyIntervalGainHp(battler, state) {
             let matchData;
+            if (state._intervalGainHp === undefined) {
+                if (matchData = state.note.match(/<\s*IntervalGainHp\s+gainValue=(\-?\d+)\s+duration=(\d+)\s*>/)) {
+                    state._intervalGainHp = [parseInt(matchData[1]), parseInt(matchData[2])];
+                } else {
+                    state._intervalGainHp = null;
+                    state._intervalGainHp
+                }
+            }
+            if (state._intervalGainHp) {
+                this._timers.push(new GainHpTimer(state._intervalGainHp[1], state._intervalGainHp[0], battler, state.id));
+            }
+        }
+
+        endIntervalGainHp(battler, state) {
+            if (!state._intervalGainHp) return;
+            let i = 0;
+            for (let timer of this._timers) {
+                if (timer instanceof GainHpTimer && timer.battler() === battler && timer.stateId() === state.id) break;
+                i++;
+            }
+            this._timers.splice(i, 1);
+        }
+
+        applyCancelActionState(battler, state) {
             if (state._cancelAction === undefined) {
-                if (matchData = state.note.match(/<\s*CancelAction\s*>/)) {
+                if (state.note.match(/<\s*CancelAction\s*>/)) {
                     state._cancelAction = true;
                 } else {
                     state._cancelAction = false;
@@ -745,6 +818,10 @@ const ATBAlias = {};
         this._atbManager = new ATBManager();
     };
 
+    BattleManager.spriteset = function() {
+        return this._spriteset;
+    }
+
     BattleManager.startInputPhase = function() {
         this._phase = "input";
     };
@@ -762,7 +839,6 @@ const ATBAlias = {};
         } else if (this._preemptive) {
             this._atbManager.preemptive();
         }
-        this._spriteset.createGaugeLines();
     };
 
     // startInput時は、すぐにターンを開始する
@@ -1380,14 +1456,8 @@ const ATBAlias = {};
 
 
     /* class Spriteset_Battle */
-    Spriteset_Battle.prototype.createGaugeLines = function() {
-        for (let battler of BattleManager.allBattleMembers()) {
-            if (battler instanceof Game_Enemy) {
-                if (ATBConfig.drawEnemyUnderGauge) this._baseSprite.addChild(new Sprite_GaugeLine(battler));
-            } else {
-                if (ATBConfig.drawUnderGauge) this._baseSprite.addChild(new Sprite_GaugeLine(battler));
-            }
-        }
+    Spriteset_Battle.prototype.createGaugeLine = function(battler) {
+        this._baseSprite.addChild(new Sprite_GaugeLine(battler));
     };
 
 
