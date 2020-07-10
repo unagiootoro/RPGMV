@@ -104,6 +104,7 @@ HPを増加させます。gainValueにマイナスの値を指定することで
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.3.1 バトルイベント実行中にゲージが停止しないバグを修正
 v1.3.0 時間経過でHPが増減させるステートを作成可能に変更
        戦闘途中で追加されたバトラーにゲージスプライトが追加されないバグを修正
 v1.2.4 クラス名のエイリアスをATBAliasに追加
@@ -399,6 +400,7 @@ const ATBAlias = {};
         updateGauge() {
             if (!this.isActive()) return;
             if (Graphics.frameCount % 2 === 0) return;
+            if ($gameTroop.isEventRunning()) return;
             for (let timer of this._timers) {
                 timer.increment(this.fastForwardSpeed());
             }
@@ -1049,6 +1051,7 @@ const ATBAlias = {};
     };
 
     BattleManager.update = function() {
+        let evantRunning;
         if (ATBConfig.enableChangeSelectActor) this.updateChangeSelectActor();
         if (ATBConfig.enableYEP_BattleEngineCore) {
 
@@ -1085,7 +1088,7 @@ const ATBAlias = {};
 
         } else {
 
-            if (!this.isBusy() && !this.updateEvent()) {
+            if (!this.isBusy() && !(evantRunning = this.updateEvent())) {
                 switch (this._phase) {
                 case "start":
                     this.startInput();
@@ -1109,6 +1112,8 @@ const ATBAlias = {};
             }
 
         }
+        // バトルイベントを実行する場合、アクターコマンド選択中を解除する
+        if ($gameTroop.isEventRunning()) this.actor().gauge().setCommandSelecting(false);
     };
 
     BattleManager.updateChangeSelectActor = function() {
