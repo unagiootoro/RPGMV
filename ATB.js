@@ -1051,7 +1051,6 @@ const ATBAlias = {};
     };
 
     BattleManager.update = function() {
-        let evantRunning;
         if (ATBConfig.enableChangeSelectActor) this.updateChangeSelectActor();
         if (ATBConfig.enableYEP_BattleEngineCore) {
 
@@ -1088,7 +1087,7 @@ const ATBAlias = {};
 
         } else {
 
-            if (!this.isBusy() && !(evantRunning = this.updateEvent())) {
+            if (!this.isBusy() && !this.updateEvent()) {
                 switch (this._phase) {
                 case "start":
                     this.startInput();
