@@ -248,13 +248,11 @@
     }
 
 
-    //class Game_Party
-    const _increaseSteps = Game_Party.prototype.increaseSteps
-    Game_Party.prototype.increaseSteps = function() {
+    // class Game_Player
+    const _increaseSteps = Game_Player.prototype.increaseSteps
+    Game_Player.prototype.increaseSteps = function() {
         _increaseSteps.call(this)
-        if ($gameMap.isAdvanceTimeMap()) {
-            $gameMap.advanceTime()
-        }
+        if ($gameMap.isAdvanceTimeMap()) $gameMap.advanceTime()
     }
 
 }
