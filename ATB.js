@@ -98,12 +98,15 @@ HPを増加させます。gainValueにマイナスの値を指定することで
 ・ステートの自動解除のタイミングを「行動終了時」にした場合、ターンではなく、
 キャラクターが行動した回数が継続ターン数に達したときにステートが解除されます。
 ・Shiftキーを押すと、ゲージが溜まるのを早送りすることができます。
-・pageupボタンを押すと、選択中のアクターを切り替えることができます。
+・pageupボタンを押すと、選択中のアクターを順送りすることができます。
+・pagedownボタンを押すと、選択中のアクターを逆送りすることができます。
 
 【ライセンス】
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.4.0 選択中のアクターの切り替えについて、pageupで順送り、pagedownで逆送りになるように変更。
+v1.3.1 バトルイベント実行中にゲージが停止しないバグを修正
 v1.3.0 時間経過でHPが増減させるステートを作成可能に変更
        戦闘途中で追加されたバトラーにゲージスプライトが追加されないバグを修正
 v1.2.4 クラス名のエイリアスをATBAliasに追加
@@ -399,6 +402,7 @@ const ATBAlias = {};
         updateGauge() {
             if (!this.isActive()) return;
             if (Graphics.frameCount % 2 === 0) return;
+            if ($gameTroop.isEventRunning()) return;
             for (let timer of this._timers) {
                 timer.increment(this.fastForwardSpeed());
             }
@@ -541,23 +545,36 @@ const ATBAlias = {};
             this._canActionMembers.unshift(subject);
         }
 
-        changeNextActor(currentActor) {
+        changeNextActor(currentActor, reverse = false) {
+            const cycleFild = (array, start, lambda) => {
+                for (let i = start; i < array.length; i++) {
+                    if (lambda(array[i])) return array[i];
+                }
+                for (let i = 0; i < start - 1; i++) {
+                    if (lambda(array[i])) return array[i];
+                }
+                return null;
+            }
+
             const currentActorIdx = this._canActionMembers.indexOf(currentActor);
             if (currentActorIdx === -1) return null;
-            let nextActor = null;
-            let nextActorIdx;
-            for (let i = currentActorIdx + 1; i < this._canActionMembers.length; i++) {
-                let battler = this._canActionMembers[i];
-                if (battler instanceof Game_Actor
-                    && !battler.gauge().isCommandSelected()
-                    && battler.canInput()
-                    && battler.gauge().purpose === ATBGauge.PURPOSE_TIME) {
-                        nextActor = battler;
-                        nextActorIdx = i;
-                        break;
-                }
+            let nextActors = this._canActionMembers.filter(member => member instanceof Game_Actor);
+            if (reverse) {
+                nextActors = nextActors.sort((a, b) => $gameParty.members().indexOf(b) - $gameParty.members().indexOf(a));
+            } else {
+                nextActors = nextActors.sort((a, b) => $gameParty.members().indexOf(a) - $gameParty.members().indexOf(b));
             }
+            const nextActor = cycleFild(nextActors, nextActors.indexOf(currentActor) + 1, (actor) => {
+                if (actor === currentActor) return false;
+                if (!actor.gauge().isCommandSelected()
+                    && actor.canInput()
+                    && actor.gauge().purpose === ATBGauge.PURPOSE_TIME) {
+                        return true;
+                }
+                return false;
+            });
             if (!nextActor) return null;
+            const nextActorIdx = this._canActionMembers.indexOf(nextActor);
             this._canActionMembers[currentActorIdx] = nextActor;
             this._canActionMembers.splice(nextActorIdx, 1);
             this._canActionMembers.push(currentActor);
@@ -1109,19 +1126,23 @@ const ATBAlias = {};
             }
 
         }
+        // バトルイベントを実行する場合、アクターコマンド選択中を解除する
+        if ($gameTroop.isEventRunning()) this.actor().gauge().setCommandSelecting(false);
     };
 
     BattleManager.updateChangeSelectActor = function() {
         if (!this._subject) return;
         const actorCommandWindow = SceneManager._scene._actorCommandWindow;
-        if (Input.isTriggered("pageup")) {
-            if (actorCommandWindow.active) {
+        if (actorCommandWindow.active) {
+            if (Input.isTriggered("pageup")) {
                 this.changeSelectActor();
+            } else if (Input.isTriggered("pagedown")) {
+                this.changeSelectActor(true);
             }
         }
     };
 
-    BattleManager.changeSelectActor = function() {
+    BattleManager.changeSelectActor = function(reverse = false) {
         const scene = SceneManager._scene;
         const currentActor = this.actor();
         if (!currentActor) return;
@@ -1132,13 +1153,13 @@ const ATBAlias = {};
             && this._subject.gauge().purpose === ATBGauge.PURPOSE_TIME
             && !this._subject.gauge().isActionEnd()) {
                 this._atbManager.addNextSubject(this._subject);
-                nextActor = this._atbManager.changeNextActor(currentActor);
+                nextActor = this._atbManager.changeNextActor(currentActor, reverse);
                 this._subject = this._atbManager.getNextSubject();
                 if (!nextActor) return;
                 currentActor.gauge().commandSelectCancel();
                 this.setActor(nextActor);
         } else {
-            nextActor = this._atbManager.changeNextActor(currentActor);
+            nextActor = this._atbManager.changeNextActor(currentActor, reverse);
             if (!nextActor) return;
             currentActor.gauge().commandSelectCancel();
             scene.updateActorCommandWindow();
