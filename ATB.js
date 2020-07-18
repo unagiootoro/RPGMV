@@ -105,7 +105,8 @@ HPを増加させます。gainValueにマイナスの値を指定することで
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
-v1.4.0 選択中のアクターの切り替えについて、pageupで順送り、pagedownで逆送りになるように変更。
+v1.4.1 「YEP_BattleEngineCore.js」が動かない不具合を修正
+v1.4.0 選択中のアクターの切り替えについて、pageupで順送り、pagedownで逆送りになるように変更
 v1.3.1 バトルイベント実行中にゲージが停止しないバグを修正
 v1.3.0 時間経過でHPが増減させるステートを作成可能に変更
        戦闘途中で追加されたバトラーにゲージスプライトが追加されないバグを修正
@@ -1287,7 +1288,7 @@ const ATBAlias = {};
     Scene_Battle.prototype.startPartyCommandSelection = function() {
         BattleManager.startPause();
         if (ATBConfig.enableYEP_BattleEngineCore) {
-            Yanfly.BEC.SceneATBAlias._Battle_startPartyCommandSelection.call(this);
+            Yanfly.BEC.Scene_Battle_startPartyCommandSelection.call(this);
         } else {
             ATBAlias._Scene_Battle_startPartyCommandSelection.call(this);
         }
@@ -1298,7 +1299,7 @@ const ATBAlias = {};
         if (ATBConfig.enableYEP_BattleEngineCore) {
 
             if (!BattleManager.actor().gauge().isCommandSelecting()) {
-                Yanfly.BEC.SceneATBAlias._Battle_startActorCommandSelection.call(this);
+                Yanfly.BEC.Scene_Battle_startActorCommandSelection.call(this);
                 this._statusWindow.refresh();
                 BattleManager.actor().gauge().setCommandSelecting(true);
             }
