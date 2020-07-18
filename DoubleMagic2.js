@@ -21,6 +21,7 @@ FFの連続魔みたいなのを作ることができます。
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.0.1 バグ修正
 v1.0.0 新規作成
 */
 {
@@ -92,14 +93,15 @@ v1.0.0 新規作成
     BattleManager.selectPreviousCommand = function() {
         _BattleManager_selectPreviousCommand.call(this);
         const actor = BattleManager.actor();
-        if (actor.doubleMagicEndSelectState() === "selected") actor.cancelDoubleMagicSelect();
+        if (actor && actor.doubleMagicEndSelectState() === "selected") actor.cancelDoubleMagicSelect();
     };
 
     const _Scene_Battle_selectNextCommand = Scene_Battle.prototype.selectNextCommand;
     Scene_Battle.prototype.selectNextCommand = function() {
         const actor = BattleManager.actor();
         const action = BattleManager.inputtingAction();
-        if (action && !action.isMagicSkill() && actor.isContinuousMagic2()) {
+        if (action && actor) console.log([action.isMagicSkill(), actor.isContinuousMagic2()]);
+        if (action && action.isMagicSkill() && actor.isContinuousMagic2()) {
             BattleManager.selectNextCommand({doubleMagic: true});
             if (actor.doubleMagicEndSelectState() === "selecting") {
                 this.commandSkill();
