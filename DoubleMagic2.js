@@ -83,10 +83,8 @@ v1.0.0 新規作成
                 actor.addAction(new Game_Action(actor));
                 actor.setDoubleMagicEndSelectState("selecting");
             }
-            _BattleManager_selectNextCommand.call(this);
-        } else {
-            _BattleManager_selectNextCommand.call(this);
         }
+        _BattleManager_selectNextCommand.call(this);
     };
 
     const _BattleManager_selectPreviousCommand = BattleManager.selectPreviousCommand;
@@ -100,7 +98,6 @@ v1.0.0 新規作成
     Scene_Battle.prototype.selectNextCommand = function() {
         const actor = BattleManager.actor();
         const action = BattleManager.inputtingAction();
-        if (action && actor) console.log([action.isMagicSkill(), actor.isContinuousMagic2()]);
         if (action && action.isMagicSkill() && actor.isContinuousMagic2()) {
             BattleManager.selectNextCommand({doubleMagic: true});
             if (actor.doubleMagicEndSelectState() === "selecting") {
