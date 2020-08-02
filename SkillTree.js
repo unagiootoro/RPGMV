@@ -89,6 +89,7 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.0.1 半透明アイコンが複数回描画される不具合を修正
 v1.0.0 新規作成
 */
 
@@ -803,6 +804,10 @@ window[SkillTreeData.name] = SkillTreeData;
         makePoint() {
             this._skillTreeData.makePoint(this._type, ViewMode, PointAlignCenter);
         }
+
+        getAllNodes() {
+            return this._skillTreeData.getAllNodesByType(this._type);
+        }
     }
 
     class Scene_SkillTree extends Scene_MenuBase {
@@ -816,6 +821,7 @@ window[SkillTreeData.name] = SkillTreeData;
             this.updateSkillTree();
             this.createSkillTreeNodeInfo();
             this.createSKillTreeWindow();
+            this.createNodeOpenWindow();
             this._windowTypeSelect.showHelpWindow();
             this._windowTypeSelect.open();
             this._windowTypeSelect.activate();
@@ -874,6 +880,7 @@ window[SkillTreeData.name] = SkillTreeData;
             this._windowNodeOpen.setHandler("no", this.nodeOpenCancel.bind(this));
             this._windowNodeOpen.setHandler("cancel", this.nodeOpenCancel.bind(this));
             this._windowNodeOpen.refresh();
+            this._windowNodeOpen.close();
             this._windowNodeOpen.deactivate();
             this._windowNodeOpen.show();
             this.addWindow(this._windowNodeOpen);
@@ -941,7 +948,6 @@ window[SkillTreeData.name] = SkillTreeData;
         }
 
         changeSkillTreeWindowToNodeOpenWindow() {
-            this.createNodeOpenWindow();
             this._windowSkillTree.deactivate();
             this._windowNodeOpen.activate();
             this._windowNodeOpen.open();
@@ -1232,8 +1238,7 @@ window[SkillTreeData.name] = SkillTreeData;
     }
 
     class Window_NodeOpen extends Window_Command {
-        initialize(types) {
-            this._types = types;
+        initialize() {
             super.initialize(0, 0);
             this.updatePlacement();
         }
@@ -1308,83 +1313,85 @@ window[SkillTreeData.name] = SkillTreeData;
             return [viewX, viewY];
         }
 
-        viewDrawNode(bitmap, node, recursiveLoopCount = 0) {
-            if (recursiveLoopCount > 255) throw new Error("endless loop error.");
-            const [px, py] = SkillTreeView.getNodePixelXY(node);
-            if (node.isSelectable()) {
-                this.drawIcon(bitmap, node.iconBitmap(), px, py);
-            } else {
-                this.drawIcon(bitmap, node.iconBitmap(), px, py, 64);
-            }
-            if (node.isOpened()) {
-                if (RectImageFileName) {
-                    const rectImage = ImageManager.loadPicture(RectImageFileName);
-                    bitmap.blt(rectImage, 0, 0, IconWidth, IconHeight, px, py);
+        viewDrawNode(bitmap) {
+            const allNodes = this._skillTreeManager.getAllNodes();
+            for (let tag in allNodes) {
+                let node = allNodes[tag];
+                if (node instanceof SkillTreeTopNode) continue;
+                let [px, py] = SkillTreeView.getNodePixelXY(node);
+                if (node.isSelectable()) {
+                    this.drawIcon(bitmap, node.iconBitmap(), px, py);
                 } else {
-                    this.drawRect(bitmap, "yellow", px, py, IconWidth, IconHeight);
+                    this.drawIcon(bitmap, node.iconBitmap(), px, py, 64);
                 }
-            }
-            for (let child of node.childs()) {
-                this.viewDrawNode(bitmap, child, ++recursiveLoopCount);
+                if (node.isOpened()) {
+                    if (RectImageFileName) {
+                        const rectImage = ImageManager.loadPicture(RectImageFileName);
+                        bitmap.blt(rectImage, 0, 0, IconWidth, IconHeight, px, py);
+                    } else {
+                        this.drawRect(bitmap, "yellow", px, py, IconWidth, IconHeight);
+                    }
+                }
             }
         }
 
-        viewDrawLine(bitmap, node, recursiveLoopCount = 0) {
-            if (recursiveLoopCount > 255) throw new Error("endless loop error.");
-            let [px, py] = SkillTreeView.getNodePixelXY(node);
-            for (let child of node.childs()) {
-                let color;
-                if (node.isOpened()) {
-                    color = ViewLineColorLearned;
-                } else {
-                    color = ViewLineColorBase;
-                }
-
-                const [xDiff, yDiff] = this.nodeDiff(node, child);
-                if (ViewMode === "wide") {
-
-                    const pxOfs = IconWidth;
-                    const pyOfs = IconHeight / 2;
-                    if (node.point.y === child.point.y) {
-                        this.drawLine(bitmap, px + pxOfs, py + pyOfs, px + pxOfs + xDiff, py + pyOfs, color);
+        viewDrawLine(bitmap) {
+            const allNodes = this._skillTreeManager.getAllNodes();
+            for (let tag in allNodes) {
+                let node = allNodes[tag];
+                if (node instanceof SkillTreeTopNode) continue;
+                let [px, py] = SkillTreeView.getNodePixelXY(node);
+                for (let child of node.childs()) {
+                    let color;
+                    if (node.isOpened()) {
+                        color = ViewLineColorLearned;
                     } else {
-                        const px1 = px + pxOfs;
-                        const py1 = py + pyOfs;
-                        const px2 = px1 + xDiff / 4;
-                        const py2 = py1;
-                        this.drawLine(bitmap, px1, py1, px2, py2, color);
-                        const px3 = px2 + xDiff / 2;
-                        const py3 = py2 + yDiff;
-                        this.drawLine(bitmap, px2, py2, px3, py3, color);
-                        const px4 = px3 + xDiff / 4;
-                        const py4 = py3;
-                        this.drawLine(bitmap, px3, py3, px4, py4, color);
+                        color = ViewLineColorBase;
                     }
 
-                } else if (ViewMode === "long") {
+                    const [xDiff, yDiff] = this.nodeDiff(node, child);
+                    if (ViewMode === "wide") {
 
-                    const pxOfs = IconWidth / 2;
-                    const pyOfs = IconHeight;
-                    if (node.point.x === child.point.x) {
-                        this.drawLine(bitmap, px + pxOfs, py + pyOfs, px + pxOfs, py + pyOfs + yDiff, color);
-                    } else {
-                        const px1 = px + pxOfs;
-                        const py1 = py + pyOfs;
-                        const px2 = px1;
-                        const py2 = py1 + yDiff / 4;
-                        this.drawLine(bitmap, px1, py1, px2, py2, color);
-                        const px3 = px2 + xDiff;
-                        const py3 = py2 + yDiff / 2;
-                        this.drawLine(bitmap, px2, py2, px3, py3, color);
-                        const px4 = px3;
-                        const py4 = py3 + yDiff / 4;
-                        this.drawLine(bitmap, px3, py3, px4, py4, color);
+                        const pxOfs = IconWidth;
+                        const pyOfs = IconHeight / 2;
+                        if (node.point.y === child.point.y) {
+                            this.drawLine(bitmap, px + pxOfs, py + pyOfs, px + pxOfs + xDiff, py + pyOfs, color);
+                        } else {
+                            const px1 = px + pxOfs;
+                            const py1 = py + pyOfs;
+                            const px2 = px1 + xDiff / 4;
+                            const py2 = py1;
+                            this.drawLine(bitmap, px1, py1, px2, py2, color);
+                            const px3 = px2 + xDiff / 2;
+                            const py3 = py2 + yDiff;
+                            this.drawLine(bitmap, px2, py2, px3, py3, color);
+                            const px4 = px3 + xDiff / 4;
+                            const py4 = py3;
+                            this.drawLine(bitmap, px3, py3, px4, py4, color);
+                        }
+
+                    } else if (ViewMode === "long") {
+
+                        const pxOfs = IconWidth / 2;
+                        const pyOfs = IconHeight;
+                        if (node.point.x === child.point.x) {
+                            this.drawLine(bitmap, px + pxOfs, py + pyOfs, px + pxOfs, py + pyOfs + yDiff, color);
+                        } else {
+                            const px1 = px + pxOfs;
+                            const py1 = py + pyOfs;
+                            const px2 = px1;
+                            const py2 = py1 + yDiff / 4;
+                            this.drawLine(bitmap, px1, py1, px2, py2, color);
+                            const px3 = px2 + xDiff;
+                            const py3 = py2 + yDiff / 2;
+                            this.drawLine(bitmap, px2, py2, px3, py3, color);
+                            const px4 = px3;
+                            const py4 = py3 + yDiff / 4;
+                            this.drawLine(bitmap, px3, py3, px4, py4, color);
+                        }
+
                     }
-
                 }
-
-                // draw child line
-                this.viewDrawLine(bitmap, child, ++recursiveLoopCount);
             }
         }
 
@@ -1417,10 +1424,8 @@ window[SkillTreeData.name] = SkillTreeData;
             const height = Math.ceil(maxPy / this._windowHeight) * this._windowHeight * 1.5;
             const bitmap = new Bitmap(width, height);
 
-            for (let drawStartNode of topNode.childs()) {
-                this.viewDrawLine(bitmap, drawStartNode);
-                this.viewDrawNode(bitmap, drawStartNode);
-            }
+            this.viewDrawNode(bitmap);
+            this.viewDrawLine(bitmap);
             const [viewX, viewY] = this.viewXY();
             const view = new Bitmap(this._windowWidth, this._windowHeight);
             view.blt(bitmap, viewX, viewY, this._windowWidth, this._windowHeight, 0, 0);
