@@ -1,5 +1,5 @@
 /*:
-@plugindesc スキルツリー v1.0.0
+@plugindesc スキルツリー v1.0.1
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @param SpName
