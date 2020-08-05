@@ -39,10 +39,10 @@ skt_gainSp(1, 5);
 
 ■ スキルリセット
 スクリプトで
-skt_SkillReset(アクターID);
+skt_skillReset(アクターID);
 と記載することで、一度習得したスキルをリセットすることができます。
 例えば、アクターIDが1のアクターのスキルリセットを行う場合、
-skt_SkillReset(1);
+skt_skillReset(1);
 と記載します。
 
 ■ マップからスキルツリーを読み込む
