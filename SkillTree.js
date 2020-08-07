@@ -1,6 +1,6 @@
 /*:
 @target MV MZ
-@plugindesc スキルツリー v1.1.0
+@plugindesc スキルツリー v1.1.1
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @param SpName
@@ -98,7 +98,7 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 @desc
 スキル取得有無の選択画面で、スキルを取得する場合のテキストを指定します。
 
-@param NodeOpenYesText
+@param NodeOpenNoText
 @type string
 @default 習得しない
 @desc
@@ -126,6 +126,8 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.1.1 MVでタッチの動作がおかしい不具合を修正
+       マップから読み込んだ座標が保存されない不具合を修正
 v1.1.0 プラグインパラメータ追加
        MZで動作するように修正
 v1.0.2 リファクタリング
@@ -605,12 +607,18 @@ class SkillTreeData {
             const actorId = actor.actorId();
             contents[actorId] = { sp: this.sp(actorId) };
             for (const type of this.types(actorId)) {
-                const openeStatus = {}
+                const openeStatus = {};
+                const reservedPoint = {};
                 const nodes = this.getAllNodesByType(type);
                 for (const tag in nodes) {
                     openeStatus[tag] = nodes[tag].isOpened();
+                    reservedPoint[tag] = nodes[tag].reservedPoint();
                 }
-                contents[type.skillTreeTag()] = { openeStatus: openeStatus };
+                
+                contents[type.skillTreeTag()] = {
+                    openeStatus: openeStatus,
+                    reservedPoint: reservedPoint,
+                };
             }
         }
         return contents;
@@ -624,6 +632,7 @@ class SkillTreeData {
                 const nodes = this.getAllNodesByType(type);
                 for (const tag in nodes) {
                     nodes[tag].setOpeneStatus(contents[type.skillTreeTag()].openeStatus[tag]);
+                    nodes[tag].setReservedPoint(contents[type.skillTreeTag()].reservedPoint[tag]);
                 }
             }
         }
@@ -1269,9 +1278,9 @@ const skt_loadMap = (actorId, typeName) => {
         // This method is used when Utils.RPGMAKER_NAME is MV.
         onTouch(triggered) {
             if (triggered) {
-                this.onTouchSelect(triggered);
-            } else {
                 this.onTouchOk();
+            } else {
+                this.onTouchSelect(triggered);
             }
         }
 
