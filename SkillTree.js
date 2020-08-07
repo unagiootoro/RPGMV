@@ -1,5 +1,5 @@
 /*:
-@plugindesc スキルツリー v1.0.1
+@plugindesc スキルツリー v1.0.2
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @param SpName
@@ -89,6 +89,7 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.0.2 リファクタリング
 v1.0.1 半透明アイコンが複数回描画される不具合を修正
 v1.0.0 新規作成
 */
@@ -307,35 +308,6 @@ class SkillTreeNode {
         }
     }
 
-    pointAlignCenter(mode, recursiveLoopCount = 0) {
-        if (recursiveLoopCount > 255) throw new Error("endless loop error.");
-        for (let child of this.childs()) {
-            child.pointAlignCenter(mode, ++recursiveLoopCount);
-        }
-        if (this.parent(0) instanceof SkillTreeTopNode || this.parents().length === 0) return;
-        if (this.parents().length === 1) {
-            if (mode === "wide") {
-                this.point.y = this.parent(0).point.y;
-            } else if (mode === "long") {
-                this.point.x = this.parent(0).point.x;
-            }
-        } else {
-            if (mode === "wide") {
-                let yOfs = 0;
-                for (let parent of this.parents()) {
-                    yOfs += (parent.point.y - this.point.y);
-                }
-                this.point.y += yOfs / 2;
-            } else if (mode === "long") {
-                let xOfs = 0;
-                for (let parent of this.parents()) {
-                    xOfs += (parent.point.x - this.point.x);
-                }
-                this.point.x += xOfs / 2;
-            }
-        }
-    }
-
     needSp() {
         return this._info.needSp();
     }
@@ -397,14 +369,13 @@ class SkillDataType {
 }
 
 class SkillTreeMapLoader {
-    constructor(skillTreeData, mapData, type) {
-        this._skillTreeData = skillTreeData;
+    constructor(mapData, type) {
         this._mapData = mapData;
         this._type = type;
     }
 
     loadMap() {
-        const allNodes = this._skillTreeData.getAllNodesByType(this._type);
+        const allNodes = $skillTreeData.getAllNodesByType(this._type);
         for (let eventData of this._mapData.events) {
             if (!eventData) continue;
             let nodeTag = eventData.note;
@@ -548,7 +519,7 @@ class SkillTreeData {
         }
     }
 
-    makePoint(type, mode, alignCenter) {
+    makePoint(type, mode) {
         this.topNode(type).clearPointNode();
         // Start point is -1 because first node is dummy. 
         if (mode === "wide") {
@@ -558,7 +529,6 @@ class SkillTreeData {
         } else {
             throw new Error(`Unknown ${ViewMode}`);
         }
-        if (alignCenter) this.topNode(type).pointAlignCenter(mode);
     }
 
     getAllNodesByType(type) {
@@ -589,19 +559,19 @@ class SkillTreeData {
 
 let $skillTreeData = null;
 
-skt_gainSp = (actorId, value)=> {
+const skt_gainSp = (actorId, value)=> {
     const actor = $gameParty.members().find(actor => actor.actorId() === actorId);
     actor.gainSp(value);
 };
 
-skt_skillReset = (actorId) => {
+const skt_skillReset = (actorId) => {
     $skillTreeData.skillResetAllTypes(actorId);
 };
 
-skt_loadMap = (actorId, typeName) => {
+const skt_loadMap = (actorId, typeName) => {
     for (let type of $skillTreeData.types(actorId)) {
         if (type.skillTreeName() === typeName) {
-            let skillTreeMapLoader = new SkillTreeMapLoader($skillTreeData, $dataMap, type);
+            let skillTreeMapLoader = new SkillTreeMapLoader($dataMap, type);
             skillTreeMapLoader.loadMap();
         }
     }
@@ -632,8 +602,6 @@ window[SkillTreeData.name] = SkillTreeData;
     const EnabledSkillTreeSwitchId = parseInt(params["EnabledSkillTreeSwitchId"]);
     const ViewMode = params["ViewMode"];
 
-    const PointAlignCenter = false;
-
     const ViewBeginXOffset = 24;
     const ViewBeginYOffset = 24;
     const ViewCursorWidth = 4;
@@ -647,8 +615,7 @@ window[SkillTreeData.name] = SkillTreeData;
     const LevelUpGetSpText = "%1%2を入手した。";
 
     class SkillTreeManager {
-        constructor(skillTreeData) {
-            this._skillTreeData = skillTreeData;
+        constructor() {
             this.reset();
         }
 
@@ -670,12 +637,8 @@ window[SkillTreeData.name] = SkillTreeData;
             this._prevStack = [];
         }
 
-        skillTreeData() {
-            return this._skillTreeData;
-        }
-
         topNode() {
-            return this._skillTreeData.topNode(this._type);
+            return $skillTreeData.topNode(this._type);
         }
 
         selectTopNode(topNode) {
@@ -793,20 +756,20 @@ window[SkillTreeData.name] = SkillTreeData;
         }
 
         isSelectNodeOpenable() {
-            return this._selectNode.isOpenable(this._skillTreeData.sp(this._actorId));
+            return this._selectNode.isOpenable($skillTreeData.sp(this._actorId));
         }
 
         selectNodeOpen() {
             this._selectNode.open();
-            this._skillTreeData.gainSp(this._actorId, -this._selectNode.needSp());
+            $skillTreeData.gainSp(this._actorId, -this._selectNode.needSp());
         }
 
         makePoint() {
-            this._skillTreeData.makePoint(this._type, ViewMode, PointAlignCenter);
+            $skillTreeData.makePoint(this._type, ViewMode);
         }
 
         getAllNodes() {
-            return this._skillTreeData.getAllNodesByType(this._type);
+            return $skillTreeData.getAllNodesByType(this._type);
         }
     }
 
@@ -846,7 +809,7 @@ window[SkillTreeData.name] = SkillTreeData;
         }
 
         createActorInfoWindow() {
-            this._windowActorInfo = new Window_ActorInfo(this.actor().actorId(), this._skillTreeManager.skillTreeData());
+            this._windowActorInfo = new Window_ActorInfo(this.actor().actorId());
             this._windowActorInfo.refresh();
             this._windowActorInfo.deactivate();
             this._windowActorInfo.show();
@@ -914,7 +877,7 @@ window[SkillTreeData.name] = SkillTreeData;
         }
     
         getSkillTreeTypes() {
-            return this._skillTreeManager.skillTreeData().types(this.actor().actorId());
+            return $skillTreeData.types(this.actor().actorId());
         }
 
         updateSkillTree() {
@@ -922,7 +885,7 @@ window[SkillTreeData.name] = SkillTreeData;
             this._skillTreeManager.reset();
             this._skillTreeManager.setActorId(this.actor().actorId());
             this._skillTreeManager.setType(type);
-            this._skillTreeManager.selectTopNode(this._skillTreeManager.skillTreeData().topNode(type));
+            this._skillTreeManager.selectTopNode($skillTreeData.topNode(type));
             if (this._windowSkillTree) this._windowSkillTree.refresh();
         }
 
@@ -1010,9 +973,8 @@ window[SkillTreeData.name] = SkillTreeData;
     }
 
     class Window_ActorInfo extends Window_Base {
-        initialize(actorId, skillTreeData) {
+        initialize(actorId) {
             this._actorId = actorId;
-            this._skillTreeData = skillTreeData;
             super.initialize(0, 320, this.windowWidth(), this.windowHeight());
         }
 
@@ -1033,7 +995,7 @@ window[SkillTreeData.name] = SkillTreeData;
             this.drawActorFace(this.actor(), 0, 0, 240, 100);
             this.drawText(`${this.actor().name()}`, 0, 90, 120, "left");
             this.changeTextColor(this.systemColor());
-            const nowSp = this._skillTreeData.sp(this._actorId);
+            const nowSp = $skillTreeData.sp(this._actorId);
             this.drawText(SpName, 0, 120, 48);
             this.resetTextColor();
             this.drawText(nowSp.toString(), 84, 120, 36, "right");
@@ -1065,7 +1027,7 @@ window[SkillTreeData.name] = SkillTreeData;
             const skill = this._skillTreeManager.selectNode().info().skill();
             this.drawText(skill.name, 0, 0, 240, "left");
             const needSp = this._skillTreeManager.selectNode().needSp();
-            const nowSp = this._skillTreeManager.skillTreeData().sp(this._skillTreeManager.actorId());
+            const nowSp = $skillTreeData.sp(this._skillTreeManager.actorId());
             this.drawText(NeedSpText.format(SpName), 0, 40, 240, "left");
             if (needSp <= nowSp) {
                 this.changeTextColor(this.crisisColor());
