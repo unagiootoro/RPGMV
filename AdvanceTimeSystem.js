@@ -1,259 +1,329 @@
 /*:
-    @plugindesc 歩くたびに時間が経過する古典的な時間経過システムを導入するプラグインです。
-    @author うなぎおおとろ
+@plugindesc 時間経過システム ver1.1.0
+@author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
-    @param timezoneVariableID
-    @default 1
-    @desc
-    時間帯を管理する変数のID
-    変数の値は、(0:朝、1:昼、2:夕方、3:夜、4:深夜、5:夜明け)を意味します。
+@param TimezoneVariableID
+@default 1
+@desc
+時間帯を管理する変数のID
+変数の値は、(0:朝、1:昼、2:夕方、3:夜、4:深夜、5:夜明け)を意味します。
 
-    @param morningSteps
-    @default 90
-    @desc 朝の時間の長さ(単位は歩数)
+@param MorningSteps
+@default 90
+@desc 朝の時間の長さ(単位は歩数)
 
-    @param noonSteps
-    @default 180
-    @desc 昼の時間の長さ(単位は歩数)
+@param NoonSteps
+@default 180
+@desc 昼の時間の長さ(単位は歩数)
 
-    @param eveningSteps
-    @default 90
-    @desc 夕方の時間の長さ(単位は歩数)
+@param EveningSteps
+@default 90
+@desc 夕方の時間の長さ(単位は歩数)
 
-    @param nightSteps
-    @default 120
-    @desc 夜の時間の長さ(単位は歩数)
+@param NightSteps
+@default 120
+@desc 夜の時間の長さ(単位は歩数)
 
-    @param lateNightSteps
-    @default 120
-    @desc 深夜の時間の長さ(単位は歩数)
+@param LateNightSteps
+@default 120
+@desc 深夜の時間の長さ(単位は歩数)
 
-    @param dawnSteps
-    @default 120
-    @desc 夜明けの時間の長さ(単位は歩数)
+@param DawnSteps
+@default 120
+@desc 夜明けの時間の長さ(単位は歩数)
 
-    @help
-    時間経過システム ver1.0.4
+@param MorningTint
+@default [-34, -34, 0, 34]
+@desc 朝の画面の色調を(Red, Green, Blue, Gray)の形式で指定
 
-    歩くたびに時間が経過する古典的な時間経過システムを導入するプラグインです。
-    時間帯には、朝、昼、夕方、夜、深夜、夜明けを使用できます。
+@param NoonTint
+@default [0, 0, 0, 0]
+@desc 昼の画面の色調を(Red, Green, Blue, Gray)の形式で指定
 
-    [使用方法]
-    時間の経過を許可するマップのメモ欄に、
-    <時間経過マップ>
-    と記述してください。
+@param EveningTint
+@default [68, -34, -34, 0]
+@desc 夕方の画面の色調を(Red, Green, Blue, Gray)の形式で指定
 
-    夜専用BGMを流したいマップでは、
-    <夜BGM:BGMファイル名>
-    と記述することで、夜に専用BGMを流すことができます。
-    例えば、インポートした"night-bgm"という夜専用BGMをセットしたい場合は、
-    <夜BGM:night-bgm>
-    となります。
+@param NightTint
+@default [-68, -68, 0, 68]
+@desc 夜の画面の色調を(Red, Green, Blue, Gray)の形式で指定
 
-    時間帯によって出現する敵グループを設定したい場合、
-    敵グループ名に、
-    <時間帯>敵グループ名
-    と指定します。
-    例えば、深夜にのみ、こうもり２匹を出現させたい場合、
-    敵グループ名は、
-    <深夜>こうもり*2
-    となります。
+@param LateNightTint
+@default [-136, -136, 0, 136]
+@desc 深夜の画面の色調を(Red, Green, Blue, Gray)の形式で指定
 
-    イベントから時間帯を変更したい場合、スクリプトに
-    $gameMap.changeTimezone(変更する時間帯の値);
-    と記述してください。
-    例えば、時間帯を夜に変更したい場合は、
-    $gameMap.changeTimezone(3);
-    となります。
+@param DawnTint
+@default [-68, -68, 0, 68]
+@desc 夜明けの画面の色調を(Red, Green, Blue, Gray)の形式で指定
 
-    [更新履歴]
-    ver1.0.4    乗り物に乗っていると時間が経過しない不具合を修正
-    ver1.0.3    use strict追加
-    ver1.0.2    デバッグ用のconsole.logを削除
-    ver1.0.1    プラグインヘルプを修正
-    ver1.0.0    公開
+@param FadeFrame
+@default 60
+@desc 画面の色調変更のフレームを指定
+
+@help
+歩くたびに時間が経過する古典的な時間経過システムを導入するプラグインです。
+時間帯には、朝(Morning)、昼(Noon)、夕方(Evening)、夜(Night)、深夜(LateNight)、夜明け(Dawn)を使用できます。
+
+[使用方法]
+時間の経過を許可するマップのメモ欄に、
+<AdvanceTimeMap>
+と記述してください。
+
+
+夜専用BGMを流したいマップでは、
+<NightBgm: ["BGMファイル名", ピッチ、ボリューム、パン]>
+と記述することで、夜に専用BGMを流すことができます。
+例えば、インポートした"night-bgm"という夜専用BGMをセットしたい場合は、
+<NightBgm: ["night-bgm", 90, 100, 0]>
+となります。
+
+なお、ボリューム、ピッチ、パンについては省略可能です。
+省略した場合、それぞれ通常時のBGMのときのものと同じ値が設定されます。
+
+時間による画面の色調変更を適用したくないマップを作ることもできます。
+例えば、建物の中では画面の色調変更を適用しない場合、
+該当のマップのメモ欄に
+<NoEffectMap>
+と記述してください。
+
+
+イベントから時間帯を変更したい場合、スクリプトに
+$gameMap.changeTimezone(変更する時間帯の値, 色調変更のフレーム数);
+と記述してください。
+なお、色調変更のフレーム数については、省略可能です。
+色調変更のフレーム数を省略した場合、プラグインパラメータで指定した色調変更のフレーム数が指定されます。
+
+例えば、時間帯を夜に変更したい場合は、
+$gameMap.changeTimezone(3);
+となります。
+
+1フレームで時間帯を朝に変更したい場合は、
+$gameMap.changeTimezone(0, 1);
+となります。
+
+
+時間帯によって出現する敵グループを設定したい場合、
+敵グループ名に、
+<時間帯>敵グループ名
+と指定します。時間帯は、英語表記で指定してください。
+例えば、深夜にのみ、こうもり２匹を出現させたい場合、
+敵グループ名は、
+<LateNight>こうもり*2
+となります。
+
+[ライセンス]
+このプラグインは、MITライセンスの条件の下で利用可能です。
+
+[更新履歴]
+ver1.1.0    プラグインパラメータ、メモ欄の記載方法を変更
+            画面の色調を指定するプラグインパラメータを追加
+            画面の色調変更を適用しないマップを作成可能に修正
+            イベントコマンドから時間帯を変更するときに画面の色調変更にかかるフレーム数を指定可能に修正
+            夜BGMにピッチ、ボリューム、パンを指定可能に修正
+ver1.0.4    乗り物に乗っていると時間が経過しない不具合を修正
+ver1.0.3    use strict追加
+ver1.0.2    デバッグ用のconsole.logを削除
+ver1.0.1    プラグインヘルプを修正
+ver1.0.0    公開
 */
 
 {
     "use strict";
 
-    const Morning = 0
-    const Noon = 1
-    const Evening = 2
-    const Night = 3
-    const LateNight = 4
-    const Dawn = 5
+    const pluginName = document.currentScript.src.match(/.+\/(.+)\.js/)[1];
+    const params = PluginManager.parameters(pluginName);
+    const TimezoneVariableID = parseInt(params["TimezoneVariableID"]);
+
+    const MorningSteps = parseInt(params["MorningSteps"]);
+    const NoonSteps = parseInt(params["NoonSteps"]);
+    const EveningSteps = parseInt(params["EveningSteps"]);
+    const NightSteps = parseInt(params["NightSteps"]);
+    const LateNightSteps = parseInt(params["LateNightSteps"]);
+    const DawnSteps = parseInt(params["DawnSteps"]);
+
+    const MorningTint = JSON.parse(params["MorningTint"]);
+    const NoonTint = JSON.parse(params["NoonTint"]);
+    const EveningTint = JSON.parse(params["EveningTint"]);
+    const NightTint = JSON.parse(params["NightTint"]);
+    const LateNightTint = JSON.parse(params["LateNightTint"]);
+    const DawnTint = JSON.parse(params["DawnTint"]);
+
+    const FadeFrame = parseInt(params["FadeFrame"]);
+
+    const Morning = 0;
+    const Noon = 1;
+    const Evening = 2;
+    const Night = 3;
+    const LateNight = 4;
+    const Dawn = 5;
+
+    class Timezone {
+        constructor(steps, tint) {
+            this._steps = steps;
+            this._tint = tint;
+        }
+
+        get steps() { return this._steps }; 
+        get tint() { return this._tint }; 
+    }
 
     //class Game_Map
     Game_Map.prototype.getNextTimezoneSteps = function() {
-        switch (this.nowTimezone()) {
-        case Morning:
-            return this._morningSteps
-        case Noon:
-            return this._noonSteps
-        case Evening:
-            return this._eveningSteps
-        case Night:
-            return this._nightSteps
-        case LateNight:
-            return this._lateNightSteps
-        case Dawn:
-            return this._dawnSteps
-        }
-    }
+        return this._timezoneDatas[this.nowTimezone()].steps;
+    };
 
-    const _initialize = Game_Map.prototype.initialize
+    const _Game_Map_initialize = Game_Map.prototype.initialize
     Game_Map.prototype.initialize = function() {
-        _initialize.call(this)
-        const params = PluginManager.parameters("AdvanceTimeSystem")
-        this._timezoneVariableID = parseInt(params["timezoneVariableID"])
-        this._morningSteps = parseInt(params["morningSteps"])
-        this._noonSteps = parseInt(params["noonSteps"])
-        this._eveningSteps = parseInt(params["eveningSteps"])
-        this._nightSteps = parseInt(params["nightSteps"])
-        this._lateNightSteps = parseInt(params["lateNightSteps"])
-        this._dawnSteps = parseInt(params["dawnSteps"])
-        this._lastTimezone = this.nowTimezone() - 1
-        this._nextTimezoneSteps = this.getNextTimezoneSteps()
+        _Game_Map_initialize.call(this);
+        this.createTimezoneDatas();
+        this._lastTimezone = this.nowTimezone() - 1;
+        this._nextTimezoneSteps = this.getNextTimezoneSteps();
+    };
+
+    Game_Map.prototype.createTimezoneDatas = function() {
+        this._timezoneDatas = {};
+        this._timezoneDatas[Morning] = new Timezone(MorningSteps, MorningTint);
+        this._timezoneDatas[Noon] = new Timezone(NoonSteps, NoonTint);
+        this._timezoneDatas[Evening] = new Timezone(EveningSteps, EveningTint);
+        this._timezoneDatas[Night] = new Timezone(NightSteps, NightTint);
+        this._timezoneDatas[LateNight] = new Timezone(LateNightSteps, LateNightTint);
+        this._timezoneDatas[Dawn] = new Timezone(DawnSteps, DawnTint);
     }
 
-    const _setup = Game_Map.prototype.setup
-    Game_Map.prototype.setup = function(mapId) {
-        _setup.call(this, mapId)
-        this._nightBgm = undefined
-        this._isAdvanceTimeMap = undefined
+    Game_Map.prototype.getTimezoneValue = function(timezoneName) {
+        switch (timezoneName) {
+        case "Morning":
+            return Morning;
+        case "Noon":
+            return Noon;
+        case "Evening":
+            return Evening;
+        case "Night":
+            return Night;
+        case "LateNight":
+            return LateNight;
+        case "Dawn":
+            return Dawn;
+        }
+        return null;
     }
+
+    const _Game_Map_setup = Game_Map.prototype.setup
+    Game_Map.prototype.setup = function(mapId) {
+        _Game_Map_setup.call(this, mapId);
+        this._nightBgm = undefined;
+        this._isAdvanceTimeMap = undefined;
+        if ($dataMap.meta.NoEffectMap) {
+            this._noEffectMap = true;
+            $gameScreen.startTint([0, 0, 0, 0], 1);
+        } else {
+            $gameScreen.startTint(this._timezoneDatas[this.nowTimezone()].tint, 1);
+            this._noEffectMap = false;
+        }
+    };
 
     Game_Map.prototype.nowTimezone = function() {
-        return $gameVariables.value(this._timezoneVariableID)
+        return $gameVariables.value(TimezoneVariableID);
+    };
+
+    Game_Map.prototype.changeTimezone = function(timezone, fadeFrame = FadeFrame) {
+        $gameVariables.setValue(TimezoneVariableID, timezone);
+        if (!this._noEffectMap) $gameScreen.startTint(this._timezoneDatas[timezone].tint, fadeFrame);
+        this._nextTimezoneSteps = this.getNextTimezoneSteps();
+    };
+
+    Game_Map.prototype.firstTimezone = function() {
+        return Morning;
     }
 
-    Game_Map.prototype.changeTimezone = function(timezone) {
-        $gameVariables.setValue(this._timezoneVariableID, timezone)
-        switch (timezone) {
-        case Morning:
-            $gameScreen.startTint([-34, -34, 0, 34], 60)
-            break
-        case Noon:
-            $gameScreen.startTint([0, 0, 0, 0], 60)
-            break
-        case Evening:
-            $gameScreen.startTint([68, -34, -34, 0], 60)
-            break
-        case Night:
-            $gameScreen.startTint([-68, -68, 0, 68], 60)
-            break
-        case LateNight:
-            $gameScreen.startTint([-136, -136, 0, 136], 60)
-            break
-        case Dawn:
-            $gameScreen.startTint([-68, -68, 0, 68], 60)
-            break
-        }
-        this._nextTimezoneSteps = this.getNextTimezoneSteps()
+    Game_Map.prototype.lastTimezone = function() {
+        return Dawn;
     }
 
     Game_Map.prototype.advanceTimezone = function() {
-        if (this.nowTimezone() < Dawn) {
-            this.changeTimezone(this.nowTimezone() + 1)
+        if (this.nowTimezone() < this.lastTimezone()) {
+            this.changeTimezone(this.nowTimezone() + 1);
         } else {
-            this.changeTimezone(Morning)
+            this.changeTimezone(this.firstTimezone());
         }
-    }
+    };
 
     Game_Map.prototype.advanceTime = function() {
-        this._nextTimezoneSteps -= 1
-        if (this._nextTimezoneSteps === 0) {
-            this.advanceTimezone()
-        }
-    }
+        this._nextTimezoneSteps--;
+        if (this._nextTimezoneSteps === 0) this.advanceTimezone();
+    };
 
     Game_Map.prototype.encounterList = function() {
         return $dataMap.encounterList.filter((encounter) => {
-            const encounterTimezone = this.getEncounterTimezone(encounter)
+            const encounterTimezone = this.getEncounterTimezone(encounter);
             if (encounterTimezone) {
-                if (encounterTimezone === this.nowTimezone()) {
-                    return true
-                }
-                return false
+                if (encounterTimezone === this.nowTimezone()) return true;
+                return false;
             }
-            return true
-        })
-    }
+            return true;
+        });
+    };
 
     Game_Map.prototype.getEncounterTimezone = function(encounter) {
         const troop = $dataTroops[encounter.troopId]
-        if (troop.name.match(/^<(.+)>/)) {
-            switch (RegExp.$1) {
-            case "朝":
-                return Morning
-            case "昼":
-                return Noon
-            case "夕方":
-                return Evening
-            case "夜":
-                return Night
-            case "深夜":
-                return LateNight
-            case "夜明け":
-                return Dawn
-            }
-            return null
-        }
-    }
+        if (troop.name.match(/^<(.+)>/)) return this.getTimezoneValue(RegExp.$1)
+        return null;
+    };
 
     Game_Map.prototype.autoplay = function() {
         if ($dataMap.autoplayBgm) {
             if ($gamePlayer.isInVehicle()) {
-                $gameSystem.saveWalkingBgm2()
+                $gameSystem.saveWalkingBgm2();
             } else {
                 if (this.nowTimezone() >= Night && this.nightBgm()) {
-                    AudioManager.playBgm(this.nightBgm())
+                    AudioManager.playBgm(this.nightBgm());
                 } else {
-                    AudioManager.playBgm($dataMap.bgm)
+                    AudioManager.playBgm($dataMap.bgm);
                 }
             }
         }
-        if ($dataMap.autoplayBgs) {
-            AudioManager.playBgs($dataMap.bgs)
-        }
-    }
+        if ($dataMap.autoplayBgs) AudioManager.playBgs($dataMap.bgs);
+    };
 
     Game_Map.prototype.nightBgm = function() {
         if (this._nightBgm === undefined) {
-            if ($dataMap.note.match(/^<夜BGM:\s*(.+)>/)) {
-                const bgmName = RegExp.$1
+            if ($dataMap.meta.NightBgm) {
+                const bgmData = JSON.parse($dataMap.meta.NightBgm);
+                const name = bgmData[0];
+                const pitch = (bgmData[1] ? bgmData[1] : $dataMap.bgm.pitch);
+                const volume = (bgmData[2] ? bgmData[2] : $dataMap.bgm.volume);
+                const pan = (bgmData[3] ? bgmData[3] : $dataMap.bgm.pan);
                 const bgm = {
-                    name: bgmName,
-                    pan: $dataMap.bgm.pan,
-                    pitch: $dataMap.bgm.pitch,
-                    volume: $dataMap.bgm.volume
-                }
-                this._nightBgm = bgm
+                    name: name,
+                    pitch: pitch,
+                    volume: volume,
+                    pan: pan
+                };
+                this._nightBgm = bgm;
             } else {
-                this._nightBgm = null
+                this._nightBgm = null;
             }
         }
-        return this._nightBgm
-    }
+        return this._nightBgm;
+    };
 
     Game_Map.prototype.isAdvanceTimeMap = function() {
         if (this._isAdvanceTimeMap === undefined) {
-            if ($dataMap.note.match(/^<時間経過マップ>/)) {
-                this._isAdvanceTimeMap = true
+            if ($dataMap.meta.AdvanceTimeMap) {
+                this._isAdvanceTimeMap = true;
             } else {
-                this._isAdvanceTimeMap = false
+                this._isAdvanceTimeMap = false;
             }
         }
-        return this._isAdvanceTimeMap
-    }
+        return this._isAdvanceTimeMap;
+    };
 
 
     // class Game_Player
-    const _increaseSteps = Game_Player.prototype.increaseSteps
+    const _Game_Player_increaseSteps = Game_Player.prototype.increaseSteps
     Game_Player.prototype.increaseSteps = function() {
-        _increaseSteps.call(this)
-        if ($gameMap.isAdvanceTimeMap()) $gameMap.advanceTime()
-    }
+        _Game_Player_increaseSteps.call(this);
+        if ($gameMap.isAdvanceTimeMap()) $gameMap.advanceTime();
+    };
 
 }
