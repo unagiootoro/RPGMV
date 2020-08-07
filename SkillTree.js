@@ -1,5 +1,6 @@
 /*:
-@plugindesc スキルツリー v1.0.2
+@target MV MZ
+@plugindesc スキルツリー v1.1.0
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @param SpName
@@ -79,6 +80,42 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 @desc
 スキル習得済みの線の色を指定します。
 
+@param MenuSkillTreeText
+@type string
+@default スキルツリー
+@desc
+メニューコマンドに表示するスキルツリーのコマンド名を指定します。
+
+@param NeedSpText
+@type string
+@default 必要%1：
+@desc
+スキルツリーウィンドウに表示する必要SPのテキストを指定します。%1にはSP名が入ります。
+
+@param NodeOpenYesText
+@type string
+@default 習得する
+@desc
+スキル取得有無の選択画面で、スキルを取得する場合のテキストを指定します。
+
+@param NodeOpenYesText
+@type string
+@default 習得しない
+@desc
+スキル取得有無の選択画面で、スキルを取得しない場合のテキストを指定します。
+
+@param BattleEndGetSpText
+@type string
+@default %1%2を入手した。
+@desc
+戦闘終了時にSPを入手したときに表示するテキストを指定します。%1には取得したSP値が、%2にはSP名が入ります。
+
+@param LevelUpGetSpText
+@type string
+@default %1%2を入手した。
+@desc
+レベルアップ時にSPを入手したときに表示するテキストを指定します。%1には取得したSP値が、%2にはSP名が入ります。
+
 @help
 スキルツリーを導入するプラグインです。
 設定方法については、「SkillTreeConfig.js」を参照してください。
@@ -89,6 +126,8 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.1.0 プラグインパラメータ追加
+       MZで動作するように修正
 v1.0.2 リファクタリング
 v1.0.1 半透明アイコンが複数回描画される不具合を修正
 v1.0.0 新規作成
@@ -235,6 +274,10 @@ class SkillTreeNode {
 
     isOpened() {
         return this._opened;
+    }
+
+    setOpeneStatus(openStatus) {
+        this._opened = openStatus;
     }
 
     open() {
@@ -555,6 +598,36 @@ class SkillTreeData {
             }
         }
     }
+
+    makeSaveContents() {
+        let contents = {};
+        for (let actor of $gameParty.members()) {
+            const actorId = actor.actorId();
+            contents[actorId] = { sp: this.sp(actorId) };
+            for (const type of this.types(actorId)) {
+                const openeStatus = {}
+                const nodes = this.getAllNodesByType(type);
+                for (const tag in nodes) {
+                    openeStatus[tag] = nodes[tag].isOpened();
+                }
+                contents[type.skillTreeTag()] = { openeStatus: openeStatus };
+            }
+        }
+        return contents;
+    }
+
+    loadSaveContents(contents) {
+        for (let actor of $gameParty.members()) {
+            const actorId = actor.actorId();
+            this.setSp(actorId, contents[actorId].sp);
+            for (const type of this.types(actorId)) {
+                const nodes = this.getAllNodesByType(type);
+                for (const tag in nodes) {
+                    nodes[tag].setOpeneStatus(contents[type.skillTreeTag()].openeStatus[tag]);
+                }
+            }
+        }
+    }
 }
 
 let $skillTreeData = null;
@@ -577,12 +650,6 @@ const skt_loadMap = (actorId, typeName) => {
     }
 };
 
-window[SkillTreeNodeInfo.name] = SkillTreeNodeInfo;
-window[SkillTreeNode.name] = SkillTreeNode;
-window[SkillTreeTopNode.name] = SkillTreeTopNode;
-window[SkillDataType.name] = SkillDataType;
-window[SkillTreeData.name] = SkillTreeData;
-
 {
     "use strict";
 
@@ -601,18 +668,17 @@ window[SkillTreeData.name] = SkillTreeData;
     const ViewLineColorLearned = params["ViewLineColorLearned"];
     const EnabledSkillTreeSwitchId = parseInt(params["EnabledSkillTreeSwitchId"]);
     const ViewMode = params["ViewMode"];
+    const MenuSkillTreeText = params["MenuSkillTreeText"];
+    const NeedSpText = params["NeedSpText"];
+    const NodeOpenYesText = params["NodeOpenYesText"];
+    const NodeOpenNoText = params["NodeOpenNoText"];
+    const BattleEndGetSpText = params["BattleEndGetSpText"];
+    const LevelUpGetSpText = params["LevelUpGetSpText"];
 
     const ViewBeginXOffset = 24;
     const ViewBeginYOffset = 24;
     const ViewCursorWidth = 4;
     const ViewLineWidth = 3;
-
-    const NeedSpText = "必要%1：";
-    const NodeOpenYesText = "習得する";
-    const NodeOpenNoText = "習得しない";
-    const MenuSkillTreeText = "スキルツリー";
-    const BattleEndGetSpText = "%1%2を入手した。";
-    const LevelUpGetSpText = "%1%2を入手した。";
 
     class SkillTreeManager {
         constructor() {
@@ -791,6 +857,14 @@ window[SkillTreeData.name] = SkillTreeData;
             this._windowTypeSelect.show();
         }
 
+        helpWindowRect() {
+            const wx = 0;
+            const wy = 0;
+            const ww = Graphics.boxWidth;
+            const wh = this.helpAreaHeight();
+            return new Rectangle(wx, wy, ww, wh);
+        };
+
         createTypeSelectWindow() {
             this._windowTypeSelect = new Window_TypeSelect(this.getSkillTreeTypes());
             this._windowTypeSelect.setHandler("cancel", this.typeCancel.bind(this));
@@ -937,7 +1011,11 @@ window[SkillTreeData.name] = SkillTreeData;
     class Window_TypeSelect extends Window_Command {
         initialize(types) {
             this._types = types;
-            super.initialize(0, 0);
+            if (Utils.RPGMAKER_NAME === "MZ") {
+                super.initialize(new Rectangle(0, 0, this.windowWidth(), this.windowHeight()));
+            } else {
+                super.initialize(0, 0, this.windowWidth(), this.windowHeight());
+            }
             this.updatePlacement();
         }
 
@@ -958,6 +1036,10 @@ window[SkillTreeData.name] = SkillTreeData;
             return 240;
         }
 
+        windowHeight() {
+            return 200;
+        }
+
         updatePlacement() {
             this.x = 0;
             this.y = 110;
@@ -975,7 +1057,11 @@ window[SkillTreeData.name] = SkillTreeData;
     class Window_ActorInfo extends Window_Base {
         initialize(actorId) {
             this._actorId = actorId;
-            super.initialize(0, 320, this.windowWidth(), this.windowHeight());
+            if (Utils.RPGMAKER_NAME === "MZ") {
+                super.initialize(new Rectangle(0, 310, this.windowWidth(), this.windowHeight()));
+            } else {
+                super.initialize(0, 310, this.windowWidth(), this.windowHeight());
+            }
         }
 
         refresh() {
@@ -1001,19 +1087,32 @@ window[SkillTreeData.name] = SkillTreeData;
             this.drawText(nowSp.toString(), 84, 120, 36, "right");
         }
 
+        systemColor() {
+            if (Utils.RPGMAKER_NAME === "MZ") return ColorManager.systemColor();
+            return super.systemColor();
+        }
+
+        drawActorFace(actor, x, y, width, height) {
+            this.drawFace(actor.faceName(), actor.faceIndex(), x, y, width, height);
+        }
+
         windowWidth() {
             return 240;
         }
 
         windowHeight() {
-            return 510 - 320;
+            return 510 - 310;
         }
     }
 
     class Window_SkillTreeNodeInfo extends Window_Base {
         initialize(skillTreeManager) {
             this._skillTreeManager = skillTreeManager;
-            super.initialize(0, 510, this.windowWidth(), this.windowHeight());
+            if (Utils.RPGMAKER_NAME === "MZ") {
+                super.initialize(new Rectangle(0, 510, this.windowWidth(), this.windowHeight()));
+            } else {
+                super.initialize(0, 510, this.windowWidth(), this.windowHeight());
+            }
         }
 
         refresh() {
@@ -1044,7 +1143,12 @@ window[SkillTreeData.name] = SkillTreeData;
         }
 
         windowHeight() {
-            return Graphics.height - 510;
+            return Graphics.boxHeight - 510;
+        }
+
+        crisisColor() {
+            if (Utils.RPGMAKER_NAME === "MZ") return ColorManager.crisisColor();
+            return super.crisisColor();
         }
     }
 
@@ -1052,11 +1156,11 @@ window[SkillTreeData.name] = SkillTreeData;
         initialize(skillTreeManager, windowSkillTreeNodeInfo) {
             this._skillTreeManager = skillTreeManager;
             this._windowSkillTreeNodeInfo = windowSkillTreeNodeInfo;
-            const width = this.windowWidth();
-            const height = this.windowHeight();
-            const x = 240;
-            const y = 110;
-            super.initialize(x, y, width, height);
+            if (Utils.RPGMAKER_NAME === "MZ") {
+                super.initialize(new Rectangle(240, 110, this.windowWidth(), this.windowHeight()));
+            } else {
+                super.initialize(240, 110, this.windowWidth(), this.windowHeight());
+            }
             this._skillTreeView = new SkillTreeView(skillTreeManager, this.windowWidth(), this.windowHeight());
             this._alreadyUpdate = false;
         }
@@ -1084,20 +1188,28 @@ window[SkillTreeData.name] = SkillTreeData;
             }
         }
 
+        refreshCursor() {
+            this.updateCursor();
+        }
+        
+        refreshCursorForAll() {
+        }
+
         isCursorVisible() {
             return this._skillTreeView && this.active;
         }
 
         windowWidth() {
-            return Graphics.width - 240;
+            return Graphics.boxWidth - 240;
         }
 
         windowHeight() {
-            return Graphics.height - 110;
+            return Graphics.boxHeight - 110;
         }
 
         refresh() {
             super.refresh();
+            this.updateCursor();
             this._alreadyUpdate = false;
         }
 
@@ -1154,11 +1266,29 @@ window[SkillTreeData.name] = SkillTreeData;
             this.callUpdateHelp();
         }
 
+        // This method is used when Utils.RPGMAKER_NAME is MV.
         onTouch(triggered) {
-            if (!triggered) return;
-            const x = this.canvasToLocalX(TouchInput.x);
-            const y = this.canvasToLocalY(TouchInput.y);
-            const hitNode = this.hitTest(x, y);
+            if (triggered) {
+                this.onTouchSelect(triggered);
+            } else {
+                this.onTouchOk();
+            }
+        }
+
+        onTouchSelect(trigger) {
+            const localPos = this.getLocalPos();
+            const hitNode = this.hitTest(localPos.x, localPos.y);
+            if (!hitNode) return;
+            const moved = this._skillTreeManager.select(hitNode);
+            if (moved) {
+                this._alreadyUpdate = false;
+                this.changeSelectNode();
+            }
+        }
+
+        onTouchOk() {
+            const localPos = this.getLocalPos();
+            const hitNode = this.hitTest(localPos.x, localPos.y);
             if (!hitNode) return;
             const moved = this._skillTreeManager.select(hitNode);
             if (moved) {
@@ -1169,39 +1299,51 @@ window[SkillTreeData.name] = SkillTreeData;
             }
         }
 
+        getLocalPos() {
+            if (Utils.RPGMAKER_NAME === "MZ") {
+                const touchPos = new Point(TouchInput.x, TouchInput.y);
+                return this.worldTransform.applyInverse(touchPos);
+            } else {
+                const x = this.canvasToLocalX(TouchInput.x);
+                const y = this.canvasToLocalY(TouchInput.y);
+                return { x: x, y: y };
+            }
+        }
+
         hitTest(x, y) {
-            let loopCount = 0;
             const [viewX, viewY] = this._skillTreeView.viewXY(); 
-
-            const hitTestNode = (node, cx, cy) => {
-                if (++loopCount > 255) throw new Error("endless loop error.");
-                let [px, py] = SkillTreeView.getNodePixelXY(node);
-                px -= viewX;
-                py -= viewY;
-                let px2 = px + IconWidth;
-                let py2 = py + IconHeight;
-                if (px <= cx && cx < px2 && py <= cy && cy < py2) {
-                    return node;
-                }
-                for (let child of node.childs()) {
-                    let res = hitTestNode(child, cx, cy);
-                    if (res) return res;
-                }
-                return null;
-            };
-
             if (this.isContentsArea(x, y)) {
                 const cx = x - this.padding;
                 const cy = y - this.padding;
-                return hitTestNode(this._skillTreeManager.topNode(), cx, cy);
+                const nodes = this._skillTreeManager.getAllNodes();
+                for (const tag in nodes) {
+                    const node = nodes[tag];
+                    let [px, py] = SkillTreeView.getNodePixelXY(node);
+                    px -= viewX;
+                    py -= viewY;
+                    let px2 = px + IconWidth;
+                    let py2 = py + IconHeight;
+                    if (px <= cx && cx < px2 && py <= cy && cy < py2) {
+                        return node;
+                    }
+                }
             }
             return null;
+        }
+
+        isContentsArea(x, y) {
+            if (Utils.RPGMAKER_NAME === "MV") return super.isContentsArea(x, y);
+            return true;
         }
     }
 
     class Window_NodeOpen extends Window_Command {
         initialize() {
-            super.initialize(0, 0);
+            if (Utils.RPGMAKER_NAME === "MZ") {
+                super.initialize(new Rectangle(0, 0, this.windowWidth(), this.windowHeight()));
+            } else {
+                super.initialize(0, 0, this.windowWidth(), this.windowHeight());
+            }
             this.updatePlacement();
         }
 
@@ -1209,9 +1351,17 @@ window[SkillTreeData.name] = SkillTreeData;
             return 240;
         }
 
+        windowHeight() {
+            return 120;
+        }
+
+        numVisibleRows() {
+            return Math.ceil(this.maxItems() / this.maxCols());
+        }
+
         updatePlacement() {
-            this.x = Graphics.width / 2 - this.windowWidth() / 2;
-            this.y = Graphics.height / 2 - this.windowHeight() / 2;
+            this.x = Graphics.boxWidth / 2 - this.windowWidth() / 2;
+            this.y = Graphics.boxHeight / 2 - this.windowHeight() / 2;
         }
 
         makeCommandList() {
@@ -1379,7 +1529,6 @@ window[SkillTreeData.name] = SkillTreeData;
         }
 
         createView() {
-            let topNode = this._skillTreeManager.topNode();
             this._skillTreeManager.makePoint();
             const [maxPx, maxPy] = this.maxPxy();
             const width = Math.ceil(maxPx / this._windowWidth) * this._windowWidth * 1.5;
@@ -1439,7 +1588,7 @@ window[SkillTreeData.name] = SkillTreeData;
     // Initialize skill tree.
     const _Game_Party_setupStartingMembers = Game_Party.prototype.setupStartingMembers;
     Game_Party.prototype.setupStartingMembers = function() {
-        if (!$skillTreeData) $skillTreeData = new SkillTreeData();
+        $skillTreeData = new SkillTreeData();
         _Game_Party_setupStartingMembers.call(this);
         for (let actor of this.members()) {
             let actorId = actor.actorId();
@@ -1494,14 +1643,14 @@ window[SkillTreeData.name] = SkillTreeData;
     const _DataManager_makeSaveContents = DataManager.makeSaveContents;
     DataManager.makeSaveContents = function(){
         const contents = _DataManager_makeSaveContents.call(this);
-        contents.skillTreeData = $skillTreeData;
+        contents.skillTreeData = $skillTreeData.makeSaveContents();
         return contents;
     };
 
     const _DataManager_extractSaveContents = DataManager.extractSaveContents;
     DataManager.extractSaveContents = function(contents){
         _DataManager_extractSaveContents.call(this, contents);
-        $skillTreeData = contents.skillTreeData;
+        $skillTreeData.loadSaveContents(contents.skillTreeData);
     };
 
 
