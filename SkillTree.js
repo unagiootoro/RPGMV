@@ -1,6 +1,6 @@
 /*:
 @target MV MZ
-@plugindesc スキルツリー v1.1.1
+@plugindesc スキルツリー v1.1.2
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @param SpName
@@ -92,6 +92,12 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 @desc
 スキルツリーウィンドウに表示する必要SPのテキストを指定します。%1にはSP名が入ります。
 
+@param NodeOpenConfirmationText
+@type string
+@default %1%2を消費して%3を取得しますか？
+@desc
+スキル取得有無の選択画面で、確認用のテキストを表示します。%1には消費するSP値が、%2にはSP名が、%3には取得するスキル名入ります。
+
 @param NodeOpenYesText
 @type string
 @default 習得する
@@ -126,6 +132,7 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.1.2 スキル取得有無の選択画面で、確認用のテキストを表示するように修正
 v1.1.1 MVでタッチの動作がおかしい不具合を修正
        マップから読み込んだ座標が保存されない不具合を修正
 v1.1.0 プラグインパラメータ追加
@@ -679,6 +686,7 @@ const skt_loadMap = (actorId, typeName) => {
     const ViewMode = params["ViewMode"];
     const MenuSkillTreeText = params["MenuSkillTreeText"];
     const NeedSpText = params["NeedSpText"];
+    const NodeOpenConfirmationText = params["NodeOpenConfirmationText"];
     const NodeOpenYesText = params["NodeOpenYesText"];
     const NodeOpenNoText = params["NodeOpenNoText"];
     const BattleEndGetSpText = params["BattleEndGetSpText"];
@@ -921,14 +929,14 @@ const skt_loadMap = (actorId, typeName) => {
         }
 
         createNodeOpenWindow() {
-            this._windowNodeOpen = new Window_NodeOpen();
+            this._windowNodeOpen = new Window_NodeOpen(this._skillTreeManager);
             this._windowNodeOpen.setHandler("yes", this.nodeOpenOk.bind(this));
             this._windowNodeOpen.setHandler("no", this.nodeOpenCancel.bind(this));
             this._windowNodeOpen.setHandler("cancel", this.nodeOpenCancel.bind(this));
-            this._windowNodeOpen.refresh();
             this._windowNodeOpen.close();
+            this._windowNodeOpen.refresh();
             this._windowNodeOpen.deactivate();
-            this._windowNodeOpen.show();
+            this._windowNodeOpen.hide();
             this.addWindow(this._windowNodeOpen);
         }
 
@@ -995,8 +1003,10 @@ const skt_loadMap = (actorId, typeName) => {
 
         changeSkillTreeWindowToNodeOpenWindow() {
             this._windowSkillTree.deactivate();
+            this._windowNodeOpen.refresh();
             this._windowNodeOpen.activate();
             this._windowNodeOpen.open();
+            this._windowNodeOpen.show();
         }
 
         changeNodeOpenWindowToSkillTreeWindow() {
@@ -1347,7 +1357,8 @@ const skt_loadMap = (actorId, typeName) => {
     }
 
     class Window_NodeOpen extends Window_Command {
-        initialize() {
+        initialize(skillTreeManager) {
+            this._skillTreeManager = skillTreeManager;
             if (Utils.RPGMAKER_NAME === "MZ") {
                 super.initialize(new Rectangle(0, 0, this.windowWidth(), this.windowHeight()));
             } else {
@@ -1357,11 +1368,11 @@ const skt_loadMap = (actorId, typeName) => {
         }
 
         windowWidth() {
-            return 240;
+            return 640;
         }
 
         windowHeight() {
-            return 120;
+            return 160;
         }
 
         numVisibleRows() {
@@ -1376,6 +1387,20 @@ const skt_loadMap = (actorId, typeName) => {
         makeCommandList() {
             this.addCommand(NodeOpenYesText, "yes");
             this.addCommand(NodeOpenNoText, "no");
+        }
+
+        itemRect(index) {
+            const rect = super.itemRect(index);
+            rect.y += 48;
+            return rect;
+        }
+
+        refresh() {
+            super.refresh();
+            const needSp = this._skillTreeManager.selectNode().needSp();
+            const skillName = this._skillTreeManager.selectNode().info().skill().name;
+            const textWidth = this.windowWidth() - this.padding * 2;
+            this.drawText(NodeOpenConfirmationText.format(needSp, SpName, skillName), 0, 0, textWidth, "left");
         }
     }
 
