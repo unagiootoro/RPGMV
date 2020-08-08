@@ -1,6 +1,6 @@
 /*:
 @target MV MZ
-@plugindesc スキルツリー v1.1.2
+@plugindesc スキルツリー v1.2.0
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @param SpName
@@ -132,6 +132,7 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.2.0 スキルツリータイプの有効/無効を設定できるように修正
 v1.1.2 スキル取得有無の選択画面で、確認用のテキストを表示するように修正
 v1.1.1 MVでタッチの動作がおかしい不具合を修正
        マップから読み込んだ座標が保存されない不具合を修正
@@ -294,22 +295,9 @@ class SkillTreeNode {
         this._opened = true;
     }
 
-    totalSp() {
-        let resetSp = this.needSp();
-        for (let child of this._childs) {
-            if (child.isOpened()) resetSp += child.totalSp();
-        }
-        return resetSp;
-    }
-
-    skillReset() {
-        let resetSp = this.needSp();
-        this._opened = false;
+    close() {
         this._info.forgetSkill();
-        for (let child of this._childs) {
-            if (child.isOpened()) resetSp += child.skillReset();
-        }
-        return resetSp;
+        this._opened = false;
     }
 
     clearPointNode() {
@@ -381,13 +369,18 @@ class SkillTreeTopNode extends SkillTreeNode {
         this.setup(dummyInfo);
     }
 
-    skillReset() {
-        let resetSp = 0;
-        this._opened = true;
+    getAllChilds() {
+        let allChilds = [];
         for (let child of this._childs) {
-            if (child.isOpened()) resetSp += child.skillReset();
+            allChilds = allChilds.concat(child.getAllChilds());
         }
-        return resetSp;
+        return allChilds;
+    }
+
+    skillReset() {
+        for (let child of this._childs) {
+            if (child.isOpened()) child.skillReset();
+        }
     }
 
     iconBitmap() {
@@ -396,11 +389,12 @@ class SkillTreeTopNode extends SkillTreeNode {
 }
 
 class SkillDataType {
-    constructor(skillTreeName, actorId, message, helpMessage) {
+    constructor(skillTreeName, actorId, message, helpMessage, enabled) {
         this._message = message;
         this._skillTreeName = skillTreeName;
         this._skillTreeTag = `${skillTreeName}_actorId${actorId}`;
         this._helpMessage = helpMessage;
+        this._enabled = enabled;
     }
 
     message() {
@@ -417,6 +411,14 @@ class SkillDataType {
 
     helpMessage() {
         return this._helpMessage;
+    }
+
+    enabled() {
+        return this._enabled;
+    }
+
+    setEnabled(enabled) {
+        this._enabled = enabled;
     }
 }
 
@@ -450,7 +452,8 @@ class SkillTreeConfigLoader {
         }
         if (!cfgTypes) throw new Error(`missing types from actorId:${actorId}`);
         for (let cfgType of cfgTypes) {
-            typesArray.push(new SkillDataType(cfgType[0], actorId, cfgType[1], cfgType[2]));
+            const enabled = (cfgType.length === 3 ? true : cfgType[3]);
+            typesArray.push(new SkillDataType(cfgType[0], actorId, cfgType[1], cfgType[2], enabled));
         }
         return typesArray;
     }
@@ -544,30 +547,56 @@ class SkillTreeData {
         return this._actorTypes[actorId];
     }
 
+    enableTypes(actorId) {
+        return this.types(actorId).filter((type) => type.enabled());
+    }
+
     setTypes(actorId, types) {
         this._actorTypes[actorId] = types;
     }
 
     totalSp(type) {
-        return this.topNode(type).totalSp();
+        let resetSp = 0;
+        const allNodes = this.getAllNodesByType(type);
+        for (const tag in allNodes) {
+            const node = allNodes[tag];
+            if (node.isOpened()) resetSp += node.needSp();
+        }
+        return resetSp;
     }
 
-    skillReset(actorId, type) {
-        const resetSp = this.topNode(type).skillReset();
-        this.gainSp(actorId, resetSp);
+    skillReset(type) {
+        const allNodes = this.getAllNodesByType(type);
+        for (const tag in allNodes) {
+            const node = allNodes[tag];
+            if (node.isOpened()) node.close();
+        }
     }
 
     totalSpAllTypes(actorId) {
         let resetSp = 0;
-        for (let type of this.types(actorId)) {
+        for (let type of this.enableTypes(actorId)) {
             resetSp += this.totalSp(type);
         }
         return resetSp;
     }
 
     skillResetAllTypes(actorId) {
-        for (let type of this.types(actorId)) {
-            this.skillReset(actorId, type);
+        for (let type of this.enableTypes(actorId)) {
+            this.skillReset(type);
+        }
+    }
+
+    copyTree(dstType, srcType) {
+        const dst = this.getAllNodesByType(dstType);
+        const src = this.getAllNodesByType(srcType);
+        for (let tag in src) {
+            const srcNode = src[tag];
+            const dstNode = dst[tag];
+            if (srcNode && dstNode && srcNode.isOpened()) {
+                srcNode.close();
+                dstNode.open();
+            }
         }
     }
 
@@ -621,8 +650,8 @@ class SkillTreeData {
                     openeStatus[tag] = nodes[tag].isOpened();
                     reservedPoint[tag] = nodes[tag].reservedPoint();
                 }
-                
                 contents[type.skillTreeTag()] = {
+                    enabled: type.enabled(),
                     openeStatus: openeStatus,
                     reservedPoint: reservedPoint,
                 };
@@ -636,6 +665,7 @@ class SkillTreeData {
             const actorId = actor.actorId();
             this.setSp(actorId, contents[actorId].sp);
             for (const type of this.types(actorId)) {
+                type.setEnabled(contents[type.skillTreeTag()].enabled);
                 const nodes = this.getAllNodesByType(type);
                 for (const tag in nodes) {
                     nodes[tag].setOpeneStatus(contents[type.skillTreeTag()].openeStatus[tag]);
@@ -654,7 +684,9 @@ const skt_gainSp = (actorId, value)=> {
 };
 
 const skt_skillReset = (actorId) => {
+    const resetSp = $skillTreeData.totalSpAllTypes(actorId);
     $skillTreeData.skillResetAllTypes(actorId);
+    $skillTreeData.gainSp(actorId, resetSp);
 };
 
 const skt_loadMap = (actorId, typeName) => {
@@ -663,6 +695,54 @@ const skt_loadMap = (actorId, typeName) => {
             let skillTreeMapLoader = new SkillTreeMapLoader($dataMap, type);
             skillTreeMapLoader.loadMap();
         }
+    }
+};
+
+const skt_enableType = (actorId, typeName) => {
+    const types = $skillTreeData.types(actorId);
+    let targetType = null;
+    for (const type of types) {
+        if (type.skillTreeName() === typeName) {
+            targetType = type;
+        }
+    }
+    if (!targetType) return;
+    targetType.setEnabled(true);
+}
+
+const skt_disableType = (actorId, typeName) => {
+    const types = $skillTreeData.types(actorId);
+    let targetType = null;
+    for (const type of types) {
+        if (type.skillTreeName() === typeName) {
+            targetType = type;
+        }
+    }
+    if (!targetType) return;
+    targetType.setEnabled(false);
+}
+
+const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
+    let dstType = null;
+    let srcType = null;
+    const types = $skillTreeData.types(actorId);
+    for (const type of types) {
+        if (type.skillTreeName() === fromTypeName) {
+            srcType = type;
+        } else if (type.skillTreeName() === toTypeName) {
+            dstType = type;
+        }
+    }
+    if (!dstType || !srcType) return;
+    srcType.setEnabled(false);
+    dstType.setEnabled(true);
+    if (reset) {
+        const resetSp = $skillTreeData.totalSp(srcType);
+        $skillTreeData.skillReset(srcType);
+        $skillTreeData.gainSp(actorId, resetSp);
+    } else {
+        $skillTreeData.copyTree(dstType, srcType);
+        $skillTreeData.skillReset(srcType);
     }
 };
 
@@ -872,6 +952,10 @@ const skt_loadMap = (actorId, typeName) => {
             this._windowTypeSelect.open();
             this._windowTypeSelect.activate();
             this._windowTypeSelect.show();
+            this._windowActorInfo.open();
+            this._windowActorInfo.show();
+            this._windowSkillTree.open();
+            this._windowSkillTree.show();
         }
 
         helpWindowRect() {
@@ -884,6 +968,25 @@ const skt_loadMap = (actorId, typeName) => {
 
         createTypeSelectWindow() {
             this._windowTypeSelect = new Window_TypeSelect(this.getSkillTreeTypes());
+            this.typeSelectWindowSetupHandlers();
+            this._windowTypeSelect.close();
+            this._windowTypeSelect.refresh();
+            this._windowTypeSelect.deactivate();
+            this._windowTypeSelect.hideHelpWindow();
+            this._windowTypeSelect.hide();
+            this.addWindow(this._windowTypeSelect);
+        }
+
+        resetTypeSelectWindow() {
+            this._windowTypeSelect.reset(this.getSkillTreeTypes());
+            this.typeSelectWindowSetupHandlers();
+            this._windowTypeSelect.refresh();
+            this._windowTypeSelect.deactivate();
+            this._windowTypeSelect.hideHelpWindow();
+            this._windowTypeSelect.show();
+        }
+
+        typeSelectWindowSetupHandlers() {
             this._windowTypeSelect.setHandler("cancel", this.typeCancel.bind(this));
             this._windowTypeSelect.setHandler("select", this.updateSkillTree.bind(this));
             this._windowTypeSelect.setHandler("pageup", this.nextActor.bind(this));
@@ -892,19 +995,22 @@ const skt_loadMap = (actorId, typeName) => {
             for (let i = 0; i < this.getSkillTreeTypes().length; i++) {
                 this._windowTypeSelect.setHandler(`type${i}`, this.typeOk.bind(this));
             }
-            this._windowTypeSelect.refresh();
-            this._windowTypeSelect.deactivate();
-            this._windowTypeSelect.hideHelpWindow();
-            this._windowTypeSelect.show();
-            this.addWindow(this._windowTypeSelect);
         }
 
         createActorInfoWindow() {
             this._windowActorInfo = new Window_ActorInfo(this.actor().actorId());
+            this._windowActorInfo.close();
+            this._windowActorInfo.refresh();
+            this._windowActorInfo.deactivate();
+            this._windowActorInfo.hide();
+            this.addWindow(this._windowActorInfo);
+        }
+
+        resetActorInfoWindow() {
+            this._windowActorInfo.reset(this.actor().actorId());
             this._windowActorInfo.refresh();
             this._windowActorInfo.deactivate();
             this._windowActorInfo.show();
-            this.addWindow(this._windowActorInfo);
         }
 
         createSkillTreeNodeInfo() {
@@ -917,14 +1023,14 @@ const skt_loadMap = (actorId, typeName) => {
         }
 
         createSKillTreeWindow() {
-            this._windowSkillTree = new Window_SkillTree(this._skillTreeManager, this._windowSkillTreeNodeInfo);
+            this._windowSkillTree = new Window_SkillTree(this._skillTreeManager, this._windowTypeSelect, this._windowSkillTreeNodeInfo);
             this._windowSkillTree.setHandler("ok", this.skillTreeOk.bind(this));
             this._windowSkillTree.setHandler("cancel", this.skillTreeCance.bind(this));
             this._windowSkillTree.setHelpWindow(this._helpWindow);
             this._windowSkillTree.refresh();
             this._windowSkillTree.deactivate();
             this._windowSkillTree.hideHelpWindow();
-            this._windowSkillTree.show();
+            this._windowSkillTree.hide();
             this.addWindow(this._windowSkillTree);
         }
 
@@ -958,9 +1064,9 @@ const skt_loadMap = (actorId, typeName) => {
 
         nodeOpenOk() {
             this._skillTreeManager.selectNodeOpen();
+            this.changeNodeOpenWindowToSkillTreeWindow();
             this._windowSkillTree.refresh();
             this._windowActorInfo.refresh();
-            this.changeNodeOpenWindowToSkillTreeWindow();
         }
 
         nodeOpenCancel() {
@@ -968,7 +1074,7 @@ const skt_loadMap = (actorId, typeName) => {
         }
     
         getSkillTreeTypes() {
-            return $skillTreeData.types(this.actor().actorId());
+            return $skillTreeData.enableTypes(this.actor().actorId());
         }
 
         updateSkillTree() {
@@ -983,13 +1089,12 @@ const skt_loadMap = (actorId, typeName) => {
         changeTypeWindowToSkillTreeWindow() {
             this._windowTypeSelect.deactivate();
             this._windowTypeSelect.hideHelpWindow();
-            this._windowSkillTree.refresh();
             this._windowSkillTreeNodeInfo.refresh();
             this._windowSkillTreeNodeInfo.open();
             this._windowSkillTreeNodeInfo.show();
+            this._windowSkillTree.refresh();
             this._windowSkillTree.showHelpWindow();
             this._windowSkillTree.activate();
-            this._windowSkillTree.open();
         }
 
         changeSkillTreeWindowToTypeWindow() {
@@ -1005,20 +1110,22 @@ const skt_loadMap = (actorId, typeName) => {
             this._windowSkillTree.deactivate();
             this._windowNodeOpen.refresh();
             this._windowNodeOpen.activate();
-            this._windowNodeOpen.open();
             this._windowNodeOpen.show();
+            this._windowNodeOpen.open();
         }
 
         changeNodeOpenWindowToSkillTreeWindow() {
             this._windowNodeOpen.deactivate();
             this._windowNodeOpen.close();
             this._windowSkillTree.open();
+            this._windowSkillTree.showHelpWindow();
             this._windowSkillTree.activate();
         }
 
         onActorChange() {
-            this.createActorInfoWindow();
-            this.createTypeSelectWindow();
+            super.onActorChange();
+            this.resetTypeSelectWindow();
+            this.resetActorInfoWindow();
             this._windowTypeSelect.showHelpWindow();
             this._windowTypeSelect.open();
             this._windowTypeSelect.activate();
@@ -1036,6 +1143,11 @@ const skt_loadMap = (actorId, typeName) => {
                 super.initialize(0, 0, this.windowWidth(), this.windowHeight());
             }
             this.updatePlacement();
+        }
+
+        reset(types) {
+            this._types = types;
+            this._handlers = {};
         }
 
         type() {
@@ -1081,6 +1193,10 @@ const skt_loadMap = (actorId, typeName) => {
             } else {
                 super.initialize(0, 310, this.windowWidth(), this.windowHeight());
             }
+        }
+
+        reset(actorId) {
+            this._actorId = actorId;
         }
 
         refresh() {
@@ -1172,8 +1288,9 @@ const skt_loadMap = (actorId, typeName) => {
     }
 
     class Window_SkillTree extends Window_Selectable {
-        initialize(skillTreeManager, windowSkillTreeNodeInfo) {
+        initialize(skillTreeManager, windowTypeSelect, windowSkillTreeNodeInfo) {
             this._skillTreeManager = skillTreeManager;
+            this._windowTypeSelect = windowTypeSelect;
             this._windowSkillTreeNodeInfo = windowSkillTreeNodeInfo;
             if (Utils.RPGMAKER_NAME === "MZ") {
                 super.initialize(new Rectangle(240, 110, this.windowWidth(), this.windowHeight()));
@@ -1215,7 +1332,7 @@ const skt_loadMap = (actorId, typeName) => {
         }
 
         isCursorVisible() {
-            return this._skillTreeView && this.active;
+            return this._skillTreeView && !this._windowTypeSelect.active;
         }
 
         windowWidth() {
@@ -1463,7 +1580,6 @@ const skt_loadMap = (actorId, typeName) => {
             const allNodes = this._skillTreeManager.getAllNodes();
             for (let tag in allNodes) {
                 let node = allNodes[tag];
-                if (node instanceof SkillTreeTopNode) continue;
                 let [px, py] = SkillTreeView.getNodePixelXY(node);
                 if (node.isSelectable()) {
                     this.drawIcon(bitmap, node.iconBitmap(), px, py);
@@ -1485,7 +1601,6 @@ const skt_loadMap = (actorId, typeName) => {
             const allNodes = this._skillTreeManager.getAllNodes();
             for (let tag in allNodes) {
                 let node = allNodes[tag];
-                if (node instanceof SkillTreeTopNode) continue;
                 let [px, py] = SkillTreeView.getNodePixelXY(node);
                 for (let child of node.childs()) {
                     let color;
