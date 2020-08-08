@@ -1,20 +1,20 @@
 /*:
 @plugindesc 連続魔法
-@author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388?lang=ja)
+@author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
-@param magicSkillTypeId
+@param MagicSkillTypeId
 @type number
 @default 1
 @desc
 「魔法」のスキルタイプIDを指定します。
 
-@param enableUseConstnuousMagicMessage
+@param EnableUseConstnuousMagicMessage
 @type boolean
 @default true
 @desc
 trueを指定すると、2回目の魔法発動時のメッセージを変更します。
 
-@param useConstnuousMagicMessage
+@param UseConstnuousMagicMessage
 @type string
 @default 呪文がやまびとなってこだます！！
 @desc
@@ -27,22 +27,24 @@ FFの連続魔みたいなのを作ることができます。
 
 [使い方]
 連続魔法を可能にしたいステートのメモ欄に
-<連続魔法>
+<DoubleMagic>
 と記述してください。
 
 [ライセンス]
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.1.0 プラグインパラメータを変更
 v1.0.0 新規作成
 */
 {
     "use strict";
 
-    const param = PluginManager.parameters("DoubleMagic");
-    const magicSkillTypeId = parseInt(param["magicSkillTypeId"]);
-    const enableUseConstnuousMagicMessage = (param["enableUseConstnuousMagicMessage"] === "true" ? true : false);
-    const useConstnuousMagicMessage = param["useConstnuousMagicMessage"];
+    const pluginName = document.currentScript.src.match(/.+\/(.+)\.js/)[1];
+    const params = PluginManager.parameters(pluginName);
+    const MagicSkillTypeId = parseInt(params["MagicSkillTypeId"]);
+    const EnableUseConstnuousMagicMessage = (params["EnableUseConstnuousMagicMessage"] === "true" ? true : false);
+    const UseConstnuousMagicMessage = params["UseConstnuousMagicMessage"];
 
     /* class Game_Battler */
     const _Game_Battler_removeCurrentAction = Game_Battler.prototype.removeCurrentAction
@@ -58,7 +60,7 @@ v1.0.0 新規作成
     /* class Game_Actor */
     Game_Actor.prototype.isContinuousMagic = function() {
         for (let stateId of this._states) {
-            if ($dataStates[stateId].note.match(/<\s*連続魔法\s*>/)) {
+            if ($dataStates[stateId].meta.DoubleMagic) {
                 return true;
             }
         }
@@ -78,7 +80,7 @@ v1.0.0 新規作成
     Game_Action.prototype.setSkill = function(skillId) {
         _Game_Action_setSkill.call(this, skillId);
         if (this.subject() instanceof Game_Actor && this.subject().isContinuousMagic()) {
-            if (this.item().stypeId === magicSkillTypeId) {
+            if (this.item().stypeId === MagicSkillTypeId) {
                 this._continuousActionCount = 2;
                 this._maxContinuousActionCount = 2;
             }
@@ -107,7 +109,7 @@ v1.0.0 新規作成
         }
         this.push("performAction", subject, action);   
         this.push("showAnimation", subject, targets.clone(), item.animationId);
-        if (action.isFirstAction() || !enableUseConstnuousMagicMessage) {
+        if (action.isFirstAction() || !EnableUseConstnuousMagicMessage) {
             this.displayAction(subject, item);
         } else {
             this.displayConstinuousAction(subject, item);
@@ -116,7 +118,7 @@ v1.0.0 新規作成
 
     Window_BattleLog.prototype.displayConstinuousAction = function(subject, item) {
         const numMethods = this._methods.length;
-        this.push('addText', useConstnuousMagicMessage);
+        this.push('addText', UseConstnuousMagicMessage);
         if (this._methods.length === numMethods) {
             this.push('wait');
         }
@@ -124,10 +126,10 @@ v1.0.0 新規作成
 
     Window_BattleLog.prototype.endAction = function(subject) {
         const action = subject.currentAction();
-        this.push('waitForNewLine');
-        this.push('clear');
+        this.push("waitForNewLine");
+        this.push("clear");
         if (!action) {
-            this.push('performActionEnd', subject);
+            this.push("performActionEnd", subject);
         }
     };
 };
