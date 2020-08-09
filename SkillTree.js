@@ -1,6 +1,6 @@
 /*:
 @target MV MZ
-@plugindesc スキルツリー v1.2.0
+@plugindesc スキルツリー v1.2.1
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @param SpName
@@ -126,12 +126,11 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 スキルツリーを導入するプラグインです。
 設定方法については、「SkillTreeConfig.js」を参照してください。
 
-なお、このプラグインは、「SkillTreeConfig.js」の後に導入してください。
-
 [ライセンス]
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.2.1 「SkllTree.js」と「SkillTreeConfig.js」の順番に依存しないように修正
 v1.2.0 スキルツリータイプの有効/無効を設定できるように修正
 v1.1.2 スキル取得有無の選択画面で、確認用のテキストを表示するように修正
 v1.1.1 MVでタッチの動作がおかしい不具合を修正
@@ -441,10 +440,44 @@ class SkillTreeMapLoader {
 }
 
 class SkillTreeConfigLoader {
+    constructor() {
+        this._configData = loadSkillTreeConfig();
+    }
+
+    configData() {
+        return this._configData;
+    }
+
+    loadConfig(actorId) {
+        let types = $skillTreeData.types(actorId);
+        if (!types) {
+            types = this.loadTypes(actorId);
+            $skillTreeData.setTypes(actorId, types);
+        }
+        for (let type of types) {
+            let topNode = $skillTreeData.topNode(type);
+            if (!topNode) {
+                topNode = this.loadSkillTreeNodes(type);
+                $skillTreeData.setTopNode(type, topNode);
+                this.loadSkillTreeInfo(actorId, $skillTreeData.getAllNodesByType(type));
+            }
+        }
+    }
+
+    preloadBitmap(rectImageFileName) {
+        if (rectImageFileName) ImageManager.loadPicture(rectImageFileName);
+        for (let infoData of this._configData.skillTreeInfo) {
+            let iconData = infoData[3];
+            if (iconData[0] === "img") {
+                ImageManager.loadPicture(iconData[1]);
+            }
+        }
+    }
+
     loadTypes(actorId) {
         let cfgTypes = null;
         let typesArray = [];
-        for (let cfg of SkillTreeConfig.skillTreeTypes) {
+        for (let cfg of this._configData.skillTreeTypes) {
             if (cfg.actorId === actorId) {
                 cfgTypes = cfg.types;
                 break;
@@ -461,9 +494,9 @@ class SkillTreeConfigLoader {
     loadSkillTreeNodes(type) {
         const nodes = {};
         let derivative = null;
-        for (let skillTreeType in SkillTreeConfig.skillTreeDerivative) {
+        for (let skillTreeType in this._configData.skillTreeDerivative) {
             if (skillTreeType === type.skillTreeName()) {
-                derivative = SkillTreeConfig.skillTreeDerivative[skillTreeType];
+                derivative = this._configData.skillTreeDerivative[skillTreeType];
                 break;
             }
         }
@@ -491,8 +524,8 @@ class SkillTreeConfigLoader {
     }
 
     loadSkillTreeInfo(actorId, allNodes) {
-        for (let cfgInfoKey in SkillTreeConfig.skillTreeInfo) {
-            let cfgInfo = SkillTreeConfig.skillTreeInfo[cfgInfoKey];
+        for (let cfgInfoKey in this._configData.skillTreeInfo) {
+            let cfgInfo = this._configData.skillTreeInfo[cfgInfoKey];
             let nodeTag = cfgInfo[0];
             let node = allNodes[nodeTag];
             if (!node) continue;
@@ -620,23 +653,6 @@ class SkillTreeData {
         return nodes;
     }
 
-    loadConfig(actorId) {
-        const configLoader = new SkillTreeConfigLoader();
-        let types = this.types(actorId);
-        if (!types) {
-            types = configLoader.loadTypes(actorId);
-            this.setTypes(actorId, types);
-        }
-        for (let type of types) {
-            let topNode = this.topNode(type);
-            if (!topNode) {
-                topNode = configLoader.loadSkillTreeNodes(type);
-                this.setTopNode(type, topNode);
-                configLoader.loadSkillTreeInfo(actorId, this.getAllNodesByType(type));
-            }
-        }
-    }
-
     makeSaveContents() {
         let contents = {};
         for (let actor of $gameParty.members()) {
@@ -677,6 +693,7 @@ class SkillTreeData {
 }
 
 let $skillTreeData = null;
+let $skillTreeConfigLoader = null;
 
 const skt_gainSp = (actorId, value)=> {
     const actor = $gameParty.members().find(actor => actor.actorId() === actorId);
@@ -780,16 +797,6 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
     class SkillTreeManager {
         constructor() {
             this.reset();
-        }
-
-        static preloadBitmap() {
-            if (RectImageFileName) ImageManager.loadPicture(RectImageFileName);
-            for (let infoData of SkillTreeConfig.skillTreeInfo) {
-                let iconData = infoData[3];
-                if (iconData[0] === "img") {
-                    ImageManager.loadPicture(iconData[1]);
-                }
-            }
         }
 
         reset() {
@@ -1737,22 +1744,27 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
     // Initialize skill tree.
     const _Game_Party_setupStartingMembers = Game_Party.prototype.setupStartingMembers;
     Game_Party.prototype.setupStartingMembers = function() {
-        $skillTreeData = new SkillTreeData();
         _Game_Party_setupStartingMembers.call(this);
+        this.initSkillTree();
+    };
+
+    Game_Party.prototype.initSkillTree = function() {
+        $skillTreeData = new SkillTreeData();
+        $skillTreeConfigLoader = new SkillTreeConfigLoader();
         for (let actor of this.members()) {
             let actorId = actor.actorId();
-            $skillTreeData.loadConfig(actorId);
+            $skillTreeConfigLoader.loadConfig(actorId);
             if (!$skillTreeData.sp(actorId)) {
                 $skillTreeData.setSp(actorId, 0);
             }
         }
-        SkillTreeManager.preloadBitmap();
+        $skillTreeConfigLoader.preloadBitmap(RectImageFileName);
     };
 
     const _Game_Party_addActor = Game_Party.prototype.addActor;
     Game_Party.prototype.addActor = function(actorId) {
         _Game_Party_addActor.call(this, actorId);
-        $skillTreeData.loadConfig(actorId);
+        $skillTreeConfigLoader.loadConfig(actorId);
         if (!$skillTreeData.sp(actorId)) {
             $skillTreeData.setSp(actorId, 0);
         }
@@ -1799,7 +1811,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
     const _DataManager_extractSaveContents = DataManager.extractSaveContents;
     DataManager.extractSaveContents = function(contents){
         _DataManager_extractSaveContents.call(this, contents);
-        $skillTreeData.loadSaveContents(contents.skillTreeData);
+        if (contents.skillTreeData) $skillTreeData.loadSaveContents(contents.skillTreeData);
     };
 
 
@@ -1877,7 +1889,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
     };
 
     Game_Actor.prototype.getLevelUpSp = function(level) {
-        for (let data of SkillTreeConfig.levelUpGainSp) {
+        for (let data of $skillTreeConfigLoader.configData().levelUpGainSp) {
             if (data.classId === this.currentClass().id) {
                 const defaultGainSp = data.default;
                 const sp = data[level.toString()];
