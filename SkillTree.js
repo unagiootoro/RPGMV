@@ -1,6 +1,6 @@
 /*:
 @target MV MZ
-@plugindesc スキルツリー v1.2.2
+@plugindesc スキルツリー v1.2.3
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @param SpName
@@ -130,6 +130,7 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.2.3 MZ版にpageup/pagedownボタンを追加
 v1.2.2  処理軽量化
 v1.2.1 「SkllTree.js」と「SkillTreeConfig.js」の順番に依存しないように修正
 v1.2.0 スキルツリータイプの有効/無効を設定できるように修正
@@ -963,7 +964,12 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
 
         helpWindowRect() {
             const wx = 0;
-            const wy = 0;
+            let wy;
+            if (Utils.RPGMAKER_NAME === "MZ") {
+                wy = 55;
+            } else {
+                wy = 0;
+            }
             const ww = Graphics.boxWidth;
             const wh = this.helpAreaHeight();
             return new Rectangle(wx, wy, ww, wh);
@@ -1075,7 +1081,15 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         nodeOpenCancel() {
             this.changeNodeOpenWindowToSkillTreeWindow();
         }
-    
+
+        needsPageButtons() {
+            return true;
+        }
+
+        arePageButtonsEnabled() {
+            return this._windowTypeSelect.active;
+        }
+
         getSkillTreeTypes() {
             return $skillTreeData.enableTypes(this.actor().actorId());
         }
@@ -1171,12 +1185,17 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         windowHeight() {
+            if (Utils.RPGMAKER_NAME === "MZ") return 160;
             return 200;
         }
 
         updatePlacement() {
             this.x = 0;
-            this.y = 110;
+            if (Utils.RPGMAKER_NAME === "MZ") {
+                this.y = 150;
+            } else {
+                this.y = 110;
+            }
         }
 
         makeCommandList() {
@@ -1296,7 +1315,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
             this._windowTypeSelect = windowTypeSelect;
             this._windowSkillTreeNodeInfo = windowSkillTreeNodeInfo;
             if (Utils.RPGMAKER_NAME === "MZ") {
-                super.initialize(new Rectangle(240, 110, this.windowWidth(), this.windowHeight()));
+                super.initialize(new Rectangle(240, 150, this.windowWidth(), this.windowHeight()));
             } else {
                 super.initialize(240, 110, this.windowWidth(), this.windowHeight());
             }
