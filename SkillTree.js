@@ -1,6 +1,6 @@
 /*:
 @target MV MZ
-@plugindesc スキルツリー v1.2.3
+@plugindesc スキルツリー v1.2.4
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @param SpName
@@ -130,6 +130,7 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.2.4 アクター切り替え時に選択中のタイプが先頭に戻らない不具合を修正
 v1.2.3 MZ版にpageup/pagedownボタンを追加
 v1.2.2  処理軽量化
 v1.2.1 「SkllTree.js」と「SkillTreeConfig.js」の順番に依存しないように修正
@@ -1163,6 +1164,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         reset(types) {
+            this._index = 0;
             this._types = types;
             this._handlers = {};
         }
