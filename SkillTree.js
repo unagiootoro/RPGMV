@@ -1,6 +1,6 @@
 /*:
 @target MV MZ
-@plugindesc スキルツリー v1.2.4
+@plugindesc スキルツリー v1.2.5
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @param SpName
@@ -130,6 +130,7 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.2.5 タイプが存在しないアクターは空のスキルツリーを表示するように修正
 v1.2.4 アクター切り替え時に選択中のタイプが先頭に戻らない不具合を修正
 v1.2.3 MZ版にpageup/pagedownボタンを追加
 v1.2.2  処理軽量化
@@ -1097,11 +1098,16 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
 
         updateSkillTree() {
             const type = this._windowTypeSelect.type();
-            this._skillTreeManager.reset();
-            this._skillTreeManager.setActorId(this.actor().actorId());
-            this._skillTreeManager.setType(type);
-            this._skillTreeManager.selectTopNode($skillTreeData.topNode(type));
-            if (this._windowSkillTree) this._windowSkillTree.refresh();
+            if (type) {
+                this._skillTreeManager.reset();
+                this._skillTreeManager.setActorId(this.actor().actorId());
+                this._skillTreeManager.setType(type);
+                this._skillTreeManager.selectTopNode($skillTreeData.topNode(type));
+                if (this._windowSkillTree) this._windowSkillTree.refresh();
+            } else {
+                if (this._windowSkillTree) this._windowSkillTree.undraw();
+            }
+
         }
 
         changeTypeWindowToSkillTreeWindow() {
@@ -1179,7 +1185,9 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         updateHelp() {
-            this.setHelpWindowItem({ description: this.type().helpMessage() });
+            let description = "";
+            if (this.type()) description = this.type().helpMessage();
+            this.setHelpWindowItem({ description: description });
         }
 
         windowWidth() {
@@ -1277,7 +1285,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         refresh() {
             if (this.contents) {
                 this.contents.clear();
-                this.draw();
+                if (this._skillTreeManager.type()) this.draw();
             }
         }
 
@@ -1323,14 +1331,15 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
             }
             this._skillTreeView = new SkillTreeView(skillTreeManager, this.windowWidth(), this.windowHeight());
             this._bitmapCache = null;
-            this._needState = "createView";
+            this._drawState = "createView";
         }
 
         update() {
             super.update();
-            if (this._needState != "none") {
+            if (this._drawState === "undraw") this.updateCursor();
+            if (this._drawState != "none") {
                 this.drawView();
-                this._needState = "none";
+                this._drawState = "none";
             }
         }
 
@@ -1341,7 +1350,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         updateCursor() {
-            if (this.isCursorVisible()) {
+            if (this.isCursorVisible() && this._skillTreeManager.type()) {
                 const rect = this._skillTreeView.getCursorRect();
                 this.setCursorRect(rect.x, rect.y, rect.width, rect.height);
             } else {
@@ -1371,18 +1380,19 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         refresh() {
             super.refresh();
             this.updateCursor();
-            this._needState = "createView";
+            this._drawState = "createView";
         }
 
         drawView() {
+            this.contents.clear();
+            if (this._drawState === "undraw") return;
             const view = this.getView();
             const [viewX, viewY] = this._skillTreeView.viewXY();
-            this.contents.clear();
             this.contents.blt(view, viewX, viewY, this.windowWidth(), this.windowHeight(), 0, 0);
         }
 
         getView() {
-            if (this._needState === "updateScroll" && this._bitmapCache) return this._bitmapCache;
+            if (this._drawState === "updateScroll" && this._bitmapCache) return this._bitmapCache;
             const bitmap = this._skillTreeView.createView();
             this._bitmapCache = bitmap;
             return bitmap;
@@ -1399,7 +1409,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         cursorDown(wrap) {
             const moved = this._skillTreeManager.down();
             if (moved) {
-                this._needState = "updateScroll";
+                this._drawState = "updateScroll";
                 this.changeSelectNode();
             }
         }
@@ -1407,7 +1417,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         cursorUp(wrap) {
             const moved = this._skillTreeManager.up();
             if (moved) {
-                this._needState = "updateScroll";
+                this._drawState = "updateScroll";
                 this.changeSelectNode();
             }
         }
@@ -1415,7 +1425,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         cursorRight(wrap) {
             const moved = this._skillTreeManager.right();
             if (moved) {
-                this._needState = "updateScroll";
+                this._drawState = "updateScroll";
                 this.changeSelectNode();
             }
         }
@@ -1423,7 +1433,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         cursorLeft(wrap) {
             const moved = this._skillTreeManager.left();
             if (moved) {
-                this._needState = "updateScroll";
+                this._drawState = "updateScroll";
                 this.changeSelectNode();
             }
         }
@@ -1450,7 +1460,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
             if (!hitNode) return;
             const moved = this._skillTreeManager.select(hitNode);
             if (moved) {
-                this._needState = "updateScroll";
+                this._drawState = "updateScroll";
                 this.changeSelectNode();
             }
         }
@@ -1461,7 +1471,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
             if (!hitNode) return;
             const moved = this._skillTreeManager.select(hitNode);
             if (moved) {
-                this._needState = "updateScroll";
+                this._drawState = "updateScroll";
                 this.changeSelectNode();
             } else {
                 this.processOk();
@@ -1503,6 +1513,10 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         isContentsArea(x, y) {
             if (Utils.RPGMAKER_NAME === "MV") return super.isContentsArea(x, y);
             return true;
+        }
+
+        undraw() {
+            this._drawState = "undraw";
         }
     }
 
@@ -1547,6 +1561,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
 
         refresh() {
             super.refresh();
+            if (!this._skillTreeManager.type()) return;
             const needSp = this._skillTreeManager.selectNode().needSp();
             const skillName = this._skillTreeManager.selectNode().info().skill().name;
             const textWidth = this.windowWidth() - this.padding * 2;
