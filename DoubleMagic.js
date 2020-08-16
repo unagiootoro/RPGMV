@@ -34,6 +34,7 @@ FFの連続魔みたいなのを作ることができます。
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.1.1 敵の連続魔法が発動しない不具合を修正
 v1.1.0 プラグインパラメータを変更
 v1.0.0 新規作成
 */
@@ -56,9 +57,7 @@ v1.0.0 新規作成
         }
     };
 
-
-    /* class Game_Actor */
-    Game_Actor.prototype.isContinuousMagic = function() {
+    Game_Battler.prototype.isContinuousMagic = function() {
         for (let stateId of this._states) {
             if ($dataStates[stateId].meta.DoubleMagic) {
                 return true;
@@ -79,7 +78,7 @@ v1.0.0 新規作成
     const _Game_Action_setSkill = Game_Action.prototype.setSkill;
     Game_Action.prototype.setSkill = function(skillId) {
         _Game_Action_setSkill.call(this, skillId);
-        if (this.subject() instanceof Game_Actor && this.subject().isContinuousMagic()) {
+        if (this.subject().isContinuousMagic()) {
             if (this.item().stypeId === MagicSkillTypeId) {
                 this._continuousActionCount = 2;
                 this._maxContinuousActionCount = 2;
