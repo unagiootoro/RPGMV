@@ -1,6 +1,6 @@
 /*:
 @target MV MZ
-@plugindesc スキルツリー v1.2.5
+@plugindesc スキルツリー v1.2.6
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @param SpName
@@ -130,6 +130,7 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.2.6 strictモードが動作していない不具合を修正
 v1.2.5 タイプが存在しないアクターは空のスキルツリーを表示するように修正
 v1.2.4 アクター切り替え時に選択中のタイプが先頭に戻らない不具合を修正
 v1.2.3 MZ版にpageup/pagedownボタンを追加
@@ -763,7 +764,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
     }
 };
 
-{
+(() => {
     "use strict";
 
     const pluginName = document.currentScript.src.match(/.+\/(.+)\.js/)[1];
@@ -1943,4 +1944,4 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
     };
 
-}
+})();
