@@ -1,6 +1,6 @@
 /*:
 @target MV MZ
-@plugindesc スキルツリー v1.2.6
+@plugindesc スキルツリー v1.3.0
 @author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
 
 @param SpName
@@ -29,7 +29,7 @@ trueを設定すると、戦闘終了時にSPを入手できるようになり�
 
 @param EnableGetSpWhenLevelUp
 @type boolean
-@default false
+@default true
 @desc
 trueを設定すると、レベルアップ時にSPを入手できるようになります。
 
@@ -42,7 +42,7 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 @param RectImageFileName
 @type string
 @desc
-取得済みスキルのアイコンを囲む画像のファイル名を指定します。空欄の場合、黄色の枠でアイコンを囲みます。
+取得済みスキルのアイコンを囲む画像のファイル名を指定します。空欄の場合、直線の枠でアイコンを囲みます。
 
 @param IconWidth
 @type number
@@ -68,6 +68,12 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 @desc
 アイコン間のスペースの縦幅を指定します。
 
+@param ViewLineWidth
+@type number
+@default 3
+@desc
+ラインの幅を指定します。
+
 @param ViewLineColorBase
 @type string
 @default #000000
@@ -79,6 +85,36 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 @default #00aaff
 @desc
 スキル習得済みの線の色を指定します。
+
+@param ViewBeginXOffset
+@type number
+@default 24
+@desc
+スキルツリーの描画開始X座標を指定します。
+
+@param ViewBeginYOffset
+@type number
+@default 24
+@desc
+スキルツリーの描画開始Y座標を指定します。
+
+@param ViewCursorOfs
+@type number
+@default 6
+@desc
+スキルツリーのアイコンに対するカーソルの座標オフセットを指定します。
+
+@param ViewRectColor
+@type string
+@default #ffff00
+@desc
+取得済みスキルのアイコンを囲む枠線の色を指定します。
+
+@param ViewRectOfs
+@type number
+@default 1
+@desc
+取得済みスキルのアイコンを囲む枠線または枠画像の座標オフセットを指定します。
 
 @param MenuSkillTreeText
 @type string
@@ -130,6 +166,8 @@ wideを設定すると、横にスキルツリーを表示します。longを設
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 [更新履歴]
+v1.3.0 プラグインパラメータ追加
+       スキルツリーウィンドウでのカーソル移動の挙動を変更
 v1.2.6 strictモードが動作していない不具合を修正
 v1.2.5 タイプが存在しないアクターは空のスキルツリーを表示するように修正
 v1.2.4 アクター切り替え時に選択中のタイプが先頭に戻らない不具合を修正
@@ -465,16 +503,6 @@ class SkillTreeConfigLoader {
         }
     }
 
-    preloadBitmap(rectImageFileName) {
-        if (rectImageFileName) ImageManager.loadPicture(rectImageFileName);
-        for (let infoData of this._configData.skillTreeInfo) {
-            let iconData = infoData[3];
-            if (iconData[0] === "img") {
-                ImageManager.loadPicture(iconData[1]);
-            }
-        }
-    }
-
     loadTypes(actorId) {
         let cfgTypes = null;
         let typesArray = [];
@@ -495,7 +523,7 @@ class SkillTreeConfigLoader {
     loadSkillTreeNodes(type) {
         const nodes = {};
         let derivative = null;
-        for (let skillTreeType in this._configData.skillTreeDerivative) {
+        for (const skillTreeType in this._configData.skillTreeDerivative) {
             if (skillTreeType === type.skillTreeName()) {
                 derivative = this._configData.skillTreeDerivative[skillTreeType];
                 break;
@@ -517,8 +545,8 @@ class SkillTreeConfigLoader {
             }
         }
         const topNode = new SkillTreeTopNode();
-        for (let nodeTag in nodes) {
-            if (nodes[nodeTag].parents().length === 0) topNode.addChild(nodes[nodeTag]);
+        for (const node of Object.values(nodes)) {
+            if (node.parents().length === 0) topNode.addChild(node);
         }
         if (topNode.length === 0) throw new Error(`missing top nodes`);
         return topNode;
@@ -591,18 +619,14 @@ class SkillTreeData {
 
     totalSp(type) {
         let resetSp = 0;
-        const allNodes = this.getAllNodesByType(type);
-        for (const tag in allNodes) {
-            const node = allNodes[tag];
+        for (const node of Object.values(this.getAllNodesByType(type))) {
             if (node.isOpened()) resetSp += node.needSp();
         }
         return resetSp;
     }
 
     skillReset(type) {
-        const allNodes = this.getAllNodesByType(type);
-        for (const tag in allNodes) {
-            const node = allNodes[tag];
+        for (const node of Object.values(this.getAllNodesByType(type))) {
             if (node.isOpened()) node.close();
         }
     }
@@ -624,7 +648,7 @@ class SkillTreeData {
     copyTree(dstType, srcType) {
         const dst = this.getAllNodesByType(dstType);
         const src = this.getAllNodesByType(srcType);
-        for (let tag in src) {
+        for (const tag in src) {
             const srcNode = src[tag];
             const dstNode = dst[tag];
             if (srcNode && dstNode && srcNode.isOpened()) {
@@ -771,17 +795,26 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
     const params = PluginManager.parameters(pluginName);
     const SpName = params["SpName"];
     const MaxSp = parseInt(params["MaxSp"]);
+
     const EnableGetSpWhenBattleEnd = (params["EnableGetSpWhenBattleEnd"] === "true" ? true : false);
     const EnableGetSpWhenLevelUp = (params["EnableGetSpWhenLevelUp"] === "true" ? true : false);
+    const EnabledSkillTreeSwitchId = parseInt(params["EnabledSkillTreeSwitchId"]);
+
+    const ViewMode = params["ViewMode"];
     const RectImageFileName = (params["RectImageFileName"] === "" ? null : params["RectImageFileName"]);
     const IconWidth = parseInt(params["IconWidth"]);
     const IconHeight = parseInt(params["IconHeight"]);
     const IconSpaceWidth = parseInt(params["IconSpaceWidth"]);
     const IconSpaceHeight = parseInt(params["IconSpaceHeight"]);
+    const ViewLineWidth = parseInt(params["ViewLineWidth"]);
     const ViewLineColorBase = params["ViewLineColorBase"];
     const ViewLineColorLearned = params["ViewLineColorLearned"];
-    const EnabledSkillTreeSwitchId = parseInt(params["EnabledSkillTreeSwitchId"]);
-    const ViewMode = params["ViewMode"];
+    const ViewBeginXOffset = parseInt(params["ViewBeginXOffset"]);
+    const ViewBeginYOffset = parseInt(params["ViewBeginYOffset"]);
+    const ViewCursorOfs = parseInt(params["ViewCursorOfs"]);
+    const ViewRectOfs = parseInt(params["ViewRectOfs"]);
+    const ViewRectColor = params["ViewRectColor"];
+
     const MenuSkillTreeText = params["MenuSkillTreeText"];
     const NeedSpText = params["NeedSpText"];
     const NodeOpenConfirmationText = params["NodeOpenConfirmationText"];
@@ -789,11 +822,6 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
     const NodeOpenNoText = params["NodeOpenNoText"];
     const BattleEndGetSpText = params["BattleEndGetSpText"];
     const LevelUpGetSpText = params["LevelUpGetSpText"];
-
-    const ViewBeginXOffset = 24;
-    const ViewBeginYOffset = 24;
-    const ViewCursorWidth = 4;
-    const ViewLineWidth = 3;
 
     class SkillTreeManager {
         constructor() {
@@ -804,7 +832,6 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
             this._actorId = null;
             this._type = null;
             this._selectNode = null;
-            this._prevStack = [];
         }
 
         topNode() {
@@ -839,7 +866,6 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         changeChildNode() {
             const nextNode = this._selectNode.child(0);
             if (nextNode) {
-                this._prevStack.push(this._selectNode);
                 this._selectNode = nextNode;
                 return true;
             }
@@ -847,8 +873,8 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         changeParentNode() {
-            const nextNode = this._prevStack.pop();
-            if (nextNode) {
+            const nextNode = this._selectNode.parent(0);
+            if (nextNode && !(nextNode instanceof SkillTreeTopNode)) {
                 this._selectNode = nextNode;
                 return true;
             }
@@ -856,11 +882,8 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         changeNextNode() {
-            let parent = this._prevStack[this._prevStack.length - 1];
-            if (!parent) {
-                parent = this._selectNode.parent(0);
-                if (!parent) throw new Error("Unknown parent");
-            }
+            parent = this._selectNode.parent(0);
+            if (!parent) throw new Error("Unknown parent");
             const i = parent.childs().indexOf(this._selectNode);
             const nextNode = parent.child(i + 1);
             if (nextNode !== this._selectNode) {
@@ -871,11 +894,8 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         changePrevNode() {
-            let parent = this._prevStack[this._prevStack.length - 1];
-            if (!parent) {
-                parent = this._selectNode.parent(0);
-                if (!parent) throw new Error("Unknown parent");
-            }
+            parent = this._selectNode.parent(0);
+            if (!parent) throw new Error("Unknown parent");
             const i = parent.childs().indexOf(this._selectNode);
             const nextNode = parent.child(i - 1);
             if (nextNode !== this._selectNode) {
@@ -885,7 +905,60 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
             return false;
         }
 
+        maxXY() {
+            let maxX = 0;
+            let maxY = 0;
+            const nodes = this.getAllNodes();
+            for (const node of Object.values(nodes)) {
+                const x = node.point.x;
+                const y = node.point.y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+            }
+            return [maxX, maxY];
+        }
+
+        searchNode(xWay, yWay) {
+            const nodes = Object.values(this.getAllNodes());
+            if (xWay !== 0) {
+                let candidates = nodes.filter(node => node.point.y === this._selectNode.point.y);
+                if (candidates.length === 0) {
+                    return null;
+                } else if (xWay === 1) {
+                    candidates = candidates.filter(node => node.point.x > this._selectNode.point.x)
+                    const fars = candidates.map(candidate => candidate.point.x - this._selectNode.point.x);
+                    const i = fars.indexOf(Math.min(...fars))
+                    return candidates[i];
+                } else if (xWay === -1) {
+                    candidates = candidates.filter(node => node.point.x < this._selectNode.point.x)
+                    const fars = candidates.map(candidate => candidate.point.x - this._selectNode.point.x);
+                    const i = fars.indexOf(Math.max(...fars))
+                    return candidates[i];
+                }
+            } else if (yWay !== 0) {
+                let candidates = nodes.filter(node => node.point.x === this._selectNode.point.x);
+                if (candidates.length === 0) {
+                    return null;
+                } else if (yWay === 1) {
+                    candidates = candidates.filter(node => node.point.y > this._selectNode.point.y)
+                    const fars = candidates.map(candidate => candidate.point.y - this._selectNode.point.y);
+                    const i = fars.indexOf(Math.min(...fars))
+                    return candidates[i];
+                } else if (yWay === -1) {
+                    candidates = candidates.filter(node => node.point.y < this._selectNode.point.y)
+                    const fars = candidates.map(candidate => candidate.point.y - this._selectNode.point.y);
+                    const i = fars.indexOf(Math.max(...fars))
+                    return candidates[i];
+                }
+            }
+        }
+
         right() {
+            const node = this.searchNode(1, 0);
+            if (node) {
+                this._selectNode = node;
+                return true;
+            }
             if (ViewMode === "wide") {
                 return this.changeChildNode();
             } else if (ViewMode === "long") {
@@ -894,6 +967,11 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         left() {
+            const node = this.searchNode(-1, 0);
+            if (node) {
+                this._selectNode = node;
+                return true;
+            }
             if (ViewMode === "wide") {
                 return this.changeParentNode();
             } else if (ViewMode === "long") {
@@ -902,6 +980,11 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         up() {
+            const node = this.searchNode(0, -1);
+            if (node) {
+                this._selectNode = node;
+                return true;
+            }
             if (ViewMode === "wide") {
                 return this.changePrevNode();
             } else if (ViewMode === "long") {
@@ -910,6 +993,11 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         down() {
+            const node = this.searchNode(0, 1);
+            if (node) {
+                this._selectNode = node;
+                return true;
+            }
             if (ViewMode === "wide") {
                 return this.changeNextNode();
             } else if (ViewMode === "long") {
@@ -944,6 +1032,22 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
     }
 
     class Scene_SkillTree extends Scene_MenuBase {
+        isReady() {
+            if (!super.isReady()) return false;
+            if (RectImageFileName) {
+                const rectImage = ImageManager.loadPicture(RectImageFileName);
+                if (!rectImage.isReady()) return false;
+            }
+            for (let infoData of $skillTreeConfigLoader.configData().skillTreeInfo) {
+                let iconData = infoData[3];
+                if (iconData[0] === "img") {
+                    const iconBitmap = ImageManager.loadPicture(iconData[1]);
+                    if (!iconBitmap.isReady()) return false;
+                }
+            }
+            return true;
+        }
+
         start() {
             super.start();
             this._skillTreeManager = new SkillTreeManager($skillTreeData);
@@ -1106,7 +1210,7 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
                 this._skillTreeManager.selectTopNode($skillTreeData.topNode(type));
                 if (this._windowSkillTree) this._windowSkillTree.refresh();
             } else {
-                if (this._windowSkillTree) this._windowSkillTree.undraw();
+                if (this._windowSkillTree) this._windowSkillTree.setDrawState("undraw");
             }
 
         }
@@ -1246,13 +1350,13 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         draw() {
-            this.drawActorFace(this.actor(), 0, 0, 240, 100);
-            this.drawText(`${this.actor().name()}`, 0, 90, 120, "left");
+            this.drawActorFace(this.actor(), 0, 0, 240, this.windowHeight() - 100);
+            this.drawText(`${this.actor().name()}`, 0, this.windowHeight() - 100, 120, "left");
             this.changeTextColor(this.systemColor());
             const nowSp = $skillTreeData.sp(this._actorId);
-            this.drawText(SpName, 0, 120, 48);
+            this.drawText(SpName, 0, this.windowHeight() - 70, 48);
             this.resetTextColor();
-            this.drawText(nowSp.toString(), 84, 120, 36, "right");
+            this.drawText(nowSp.toString(), 84, this.windowHeight() - 70, 36, "right");
         }
 
         systemColor() {
@@ -1335,6 +1439,10 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
             this._drawState = "createView";
         }
 
+        setDrawState(drawState) {
+            this._drawState = drawState;
+        }
+
         update() {
             super.update();
             if (this._drawState === "undraw") this.updateCursor();
@@ -1375,7 +1483,11 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         windowHeight() {
-            return Graphics.boxHeight - 110;
+            if (Utils.RPGMAKER_NAME === "MZ") {
+                return Graphics.boxHeight - 150;
+            } else {
+                return Graphics.boxHeight - 110;
+            }
         }
 
         refresh() {
@@ -1496,9 +1608,8 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
                 const cx = x - this.padding;
                 const cy = y - this.padding;
                 const nodes = this._skillTreeManager.getAllNodes();
-                for (const tag in nodes) {
-                    const node = nodes[tag];
-                    let [px, py] = SkillTreeView.getNodePixelXY(node);
+                for (const node of Object.values(nodes)) {
+                    let [px, py] = SkillTreeView.getPixelXY(node.point);
                     px -= viewX;
                     py -= viewY;
                     let px2 = px + IconWidth;
@@ -1514,10 +1625,6 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         isContentsArea(x, y) {
             if (Utils.RPGMAKER_NAME === "MV") return super.isContentsArea(x, y);
             return true;
-        }
-
-        undraw() {
-            this._drawState = "undraw";
         }
     }
 
@@ -1577,28 +1684,20 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
             this._windowHeight = windowHeight;
         }
 
-        static getNodePixelXY(node) {
-            const px = node.point.x * (IconWidth + IconSpaceWidth) + ViewBeginXOffset;
-            const py = node.point.y * (IconHeight + IconSpaceHeight) + ViewBeginYOffset;
+        static getPixelXY(point) {
+            const px = point.x * (IconWidth + IconSpaceWidth) + ViewBeginXOffset;
+            const py = point.y * (IconHeight + IconSpaceHeight) + ViewBeginYOffset;
             return [px, py];
         }
 
         maxPxy() {
-            const getMaxPxy = (node, maxPx, maxPy) => {
-                let [px, py] = SkillTreeView.getNodePixelXY(node);
-                if (px > maxPx) maxPx = px;
-                if (py > maxPy) maxPy = py;
-                for (let child of node.childs()) {
-                    [maxPx, maxPy] = getMaxPxy(child, maxPx, maxPy);
-                }
-                return [maxPx, maxPy];
-            };
-            return getMaxPxy(this._skillTreeManager.topNode(), 0, 0);
+            const [maxX, maxY] = this._skillTreeManager.maxXY();
+            return SkillTreeView.getPixelXY({ x: maxX, y: maxY });
         }
 
         viewXY() {
             const selectNode = this._skillTreeManager.selectNode();
-            const [selectNodePx, selectNodePy] = SkillTreeView.getNodePixelXY(selectNode);
+            const [selectNodePx, selectNodePy] = SkillTreeView.getPixelXY(selectNode.point);
             let [maxPx, maxPy] = this.maxPxy();
             maxPx += (IconWidth + IconSpaceWidth);
             maxPy += (IconHeight + IconSpaceHeight);
@@ -1626,31 +1725,31 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         viewDrawNode(bitmap) {
-            const allNodes = this._skillTreeManager.getAllNodes();
-            for (let tag in allNodes) {
-                let node = allNodes[tag];
-                let [px, py] = SkillTreeView.getNodePixelXY(node);
+            for (const node of Object.values(this._skillTreeManager.getAllNodes())) {
+                let [px, py] = SkillTreeView.getPixelXY(node.point);
                 if (node.isSelectable()) {
                     this.drawIcon(bitmap, node.iconBitmap(), px, py);
                 } else {
                     this.drawIcon(bitmap, node.iconBitmap(), px, py, 64);
                 }
                 if (node.isOpened()) {
+                    const x = px - ViewRectOfs;
+                    const y = py - ViewRectOfs;
                     if (RectImageFileName) {
                         const rectImage = ImageManager.loadPicture(RectImageFileName);
-                        bitmap.blt(rectImage, 0, 0, IconWidth, IconHeight, px, py);
+                        bitmap.blt(rectImage, 0, 0, IconWidth, IconHeight, x, y);
                     } else {
-                        this.drawRect(bitmap, "yellow", px, py, IconWidth, IconHeight);
+                        const width = IconWidth + ViewRectOfs * 2;
+                        const height = IconHeight + ViewRectOfs * 2;
+                        this.drawRect(bitmap, ViewRectColor, x, y, width, height);
                     }
                 }
             }
         }
 
         viewDrawLine(bitmap) {
-            const allNodes = this._skillTreeManager.getAllNodes();
-            for (let tag in allNodes) {
-                let node = allNodes[tag];
-                let [px, py] = SkillTreeView.getNodePixelXY(node);
+            for (let node of Object.values( this._skillTreeManager.getAllNodes())) {
+                let [px, py] = SkillTreeView.getPixelXY(node.point);
                 for (let child of node.childs()) {
                     let color;
                     if (node.isOpened()) {
@@ -1706,8 +1805,8 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         }
 
         nodeDiff(node1, node2) {
-            const [px1, py1] = SkillTreeView.getNodePixelXY(node1);
-            const [px2, py2] = SkillTreeView.getNodePixelXY(node2);
+            const [px1, py1] = SkillTreeView.getPixelXY(node1.point);
+            const [px2, py2] = SkillTreeView.getPixelXY(node2.point);
             let xDiff = px2 - px1;
             let yDiff = py2 - py1;
             if (ViewMode === "wide") {
@@ -1740,13 +1839,13 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
         getCursorRect() {
             this._skillTreeManager.makePoint();
             const selectNode = this._skillTreeManager.selectNode();
-            const [px, py] = SkillTreeView.getNodePixelXY(selectNode);
+            const [px, py] = SkillTreeView.getPixelXY(selectNode.point);
             const [viewX, viewY] = this.viewXY();
             return {
-                x: px - ViewCursorWidth - viewX,
-                y: py - ViewCursorWidth - viewY,
-                width: IconWidth + ViewCursorWidth * 2,
-                height: IconHeight + ViewCursorWidth * 2
+                x: px - ViewCursorOfs - viewX,
+                y: py - ViewCursorOfs - viewY,
+                width: IconWidth + ViewCursorOfs * 2,
+                height: IconHeight + ViewCursorOfs * 2
             };
         }
 
@@ -1796,7 +1895,6 @@ const skt_migrationType = (actorId, fromTypeName, toTypeName, reset) => {
                 $skillTreeData.setSp(actorId, 0);
             }
         }
-        $skillTreeConfigLoader.preloadBitmap(RectImageFileName);
     };
 
     const _Game_Party_addActor = Game_Party.prototype.addActor;
