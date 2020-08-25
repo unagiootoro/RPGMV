@@ -105,6 +105,7 @@ HPを増加させます。gainValueにマイナスの値を指定することで
 このプラグインは、MITライセンスの条件の下で利用可能です。
 
 【更新履歴】
+v1.4.2 「YEP_BattleEngineCore.js」が動かない不具合を修正
 v1.4.1 「YEP_BattleEngineCore.js」が動かない不具合を修正
 v1.4.0 選択中のアクターの切り替えについて、pageupで順送り、pagedownで逆送りになるように変更
 v1.3.1 バトルイベント実行中にゲージが停止しないバグを修正
@@ -1012,7 +1013,7 @@ const ATBAlias = {};
               return;
             }
             this._enteredEndPhase = true;
-            Yanfly.BEC.BattleManagerATBAlias._endTurn.call(this);
+            Yanfly.BEC.BattleManager_endTurn.call(this);
             BattleManager.refreshAllMembers();
             this.actor().gauge().commandSelectCancel();
             this._turnStarted = false;
