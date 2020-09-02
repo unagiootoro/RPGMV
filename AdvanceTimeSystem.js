@@ -1,6 +1,8 @@
 /*:
-@plugindesc 時間経過システム ver1.1.0
-@author うなぎおおとろ(twitter https://twitter.com/unagiootoro8388)
+@target MV MZ
+@plugindesc 時間経過システム ver1.1.2
+@author うなぎおおとろ
+@url https://raw.githubusercontent.com/unagiootoro/RPGMZ/master/AdvanceTimeSystem.js
 
 @param TimezoneVariableID
 @default 1
@@ -113,18 +115,6 @@ $gameMap.changeTimezone(0, 1);
 
 [ライセンス]
 このプラグインは、MITライセンスの条件の下で利用可能です。
-
-[更新履歴]
-ver1.1.0    プラグインパラメータ、メモ欄の記載方法を変更
-            画面の色調を指定するプラグインパラメータを追加
-            画面の色調変更を適用しないマップを作成可能に修正
-            イベントコマンドから時間帯を変更するときに画面の色調変更にかかるフレーム数を指定可能に修正
-            夜BGMにピッチ、ボリューム、パンを指定可能に修正
-ver1.0.4    乗り物に乗っていると時間が経過しない不具合を修正
-ver1.0.3    use strict追加
-ver1.0.2    デバッグ用のconsole.logを削除
-ver1.0.1    プラグインヘルプを修正
-ver1.0.0    公開
 */
 
 {
@@ -157,6 +147,8 @@ ver1.0.0    公開
     const LateNight = 4;
     const Dawn = 5;
 
+    let $timezoneDatas = null;
+
     class Timezone {
         constructor(steps, tint) {
             this._steps = steps;
@@ -169,7 +161,7 @@ ver1.0.0    公開
 
     //class Game_Map
     Game_Map.prototype.getNextTimezoneSteps = function() {
-        return this._timezoneDatas[this.nowTimezone()].steps;
+        return $timezoneDatas[this.nowTimezone()].steps;
     };
 
     const _Game_Map_initialize = Game_Map.prototype.initialize
@@ -181,13 +173,13 @@ ver1.0.0    公開
     };
 
     Game_Map.prototype.createTimezoneDatas = function() {
-        this._timezoneDatas = {};
-        this._timezoneDatas[Morning] = new Timezone(MorningSteps, MorningTint);
-        this._timezoneDatas[Noon] = new Timezone(NoonSteps, NoonTint);
-        this._timezoneDatas[Evening] = new Timezone(EveningSteps, EveningTint);
-        this._timezoneDatas[Night] = new Timezone(NightSteps, NightTint);
-        this._timezoneDatas[LateNight] = new Timezone(LateNightSteps, LateNightTint);
-        this._timezoneDatas[Dawn] = new Timezone(DawnSteps, DawnTint);
+        $timezoneDatas = {};
+        $timezoneDatas[Morning] = new Timezone(MorningSteps, MorningTint);
+        $timezoneDatas[Noon] = new Timezone(NoonSteps, NoonTint);
+        $timezoneDatas[Evening] = new Timezone(EveningSteps, EveningTint);
+        $timezoneDatas[Night] = new Timezone(NightSteps, NightTint);
+        $timezoneDatas[LateNight] = new Timezone(LateNightSteps, LateNightTint);
+        $timezoneDatas[Dawn] = new Timezone(DawnSteps, DawnTint);
     }
 
     Game_Map.prototype.getTimezoneValue = function(timezoneName) {
@@ -217,7 +209,7 @@ ver1.0.0    公開
             this._noEffectMap = true;
             $gameScreen.startTint([0, 0, 0, 0], 1);
         } else {
-            $gameScreen.startTint(this._timezoneDatas[this.nowTimezone()].tint, 1);
+            $gameScreen.startTint($timezoneDatas[this.nowTimezone()].tint, 1);
             this._noEffectMap = false;
         }
     };
@@ -228,7 +220,7 @@ ver1.0.0    公開
 
     Game_Map.prototype.changeTimezone = function(timezone, fadeFrame = FadeFrame) {
         $gameVariables.setValue(TimezoneVariableID, timezone);
-        if (!this._noEffectMap) $gameScreen.startTint(this._timezoneDatas[timezone].tint, fadeFrame);
+        if (!this._noEffectMap) $gameScreen.startTint($timezoneDatas[timezone].tint, fadeFrame);
         this._nextTimezoneSteps = this.getNextTimezoneSteps();
     };
 
